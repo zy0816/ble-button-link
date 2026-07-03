@@ -82,6 +82,16 @@ adb pull /system/framework/ecarx.xui.adaptapi.jar
 
 ---
 
+## 致谢
+
+- 米家云端登录与 BindKey 拉取的算法（登录三步、`ssecurity` 派生、`rc4`/签名等）参考自开源项目 **[Xiaomi-cloud-tokens-extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor)**（作者 Piotr Machowski），本项目据其思路以 Java 重新实现。感谢原作者。
+
+## 打赏支持
+
+如果这个项目对你有帮助，欢迎请我喝杯咖啡 ☕
+
+<img src="docs/donate.jpg" width="480" alt="微信 / 支付宝 打赏码" />
+
 ## 免责声明
 
 - 本项目为**个人车机适配 / 学习研究**用途，按自己车机逆向适配，不保证适用于其他机型。
