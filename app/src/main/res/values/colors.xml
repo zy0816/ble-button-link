@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#1F2933</color>
+
+    <!-- 浅色（默认，随车机日间模式）。深色见 values-night/colors.xml。 -->
+    <color name="bg">#F2F5F8</color>
+    <color name="panel">#FFFFFF</color>
+    <color name="panel2">#E9EEF3</color>
+    <color name="line">#D2DAE2</color>
+    <color name="txt">#1A222B</color>
+    <color name="sub">#5B6B7A</color>
+    <color name="accent">#2F7FB4</color>
+    <color name="accent_ink">#FFFFFF</color>
+    <color name="accent2">#3F8F4F</color>
+    <color name="warn">#9A6B1F</color>
+    <color name="chip">#E5EBF1</color>
+    <color name="input">#FFFFFF</color>
+    <color name="disc_bg">#FBF3E2</color>
+    <color name="disc_line">#E7D8B2</color>
+</resources>

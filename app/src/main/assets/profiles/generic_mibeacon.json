@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "productId": "generic.mibeacon",
+  "displayName": "通用米家按键（自学习）",
+  "author": "builtin",
+  "match": {
+    "namePrefix": "\u0000__self_learn_never_match__\u0000"
+  },
+  "credential": "BINDKEY16",
+  "decode": {
+    "codec": "mibeacon",
+    "gestureObjMap": {
+      "0x0000": "placeholder"
+    }
+  },
+  "gestures": [
+    { "id": "placeholder", "name": "（请用自学习）" }
+  ]
+}

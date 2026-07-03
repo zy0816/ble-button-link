@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "productId": "mijia.knob.ts00",
+  "displayName": "米家蓝牙旋钮",
+  "author": "builtin",
+  "match": {
+    "serviceUuid": "fe95",
+    "productIdLe": "0x5149"
+  },
+  "credential": "BINDKEY16",
+  "decode": {
+    "codec": "mibeacon",
+    "gestureObjMap": {
+      "0x560c": "single",
+      "0x560d": "double",
+      "0x560e": "long"
+    }
+  },
+  "gestures": [
+    { "id": "single", "name": "单击" },
+    { "id": "double", "name": "双击" },
+    { "id": "long", "name": "长按" }
+  ]
+}

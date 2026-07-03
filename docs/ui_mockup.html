@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>蓝牙按键 · UI 设计稿</title>
+<style>
+  :root{
+    --bg:#11161c; --panel:#1b232c; --panel2:#222c37; --line:#2c3845;
+    --txt:#e8eef4; --sub:#93a1b0; --accent:#7fb4d9; --accent2:#a7d3a7;
+    --warn:#d9b27f; --r:18px; --gap:8px;
+  }
+  *{box-sizing:border-box;font-family:-apple-system,"PingFang SC","Noto Sans CJK SC",Roboto,sans-serif;}
+  body{margin:0;background:#0a0d11;color:var(--txt);padding:32px;}
+  h1{font-size:22px;font-weight:600;margin:0 0 4px;}
+  .cap{color:var(--sub);font-size:13px;margin-bottom:24px;}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;max-width:1500px;}
+  .screen{background:var(--bg);border:1px solid var(--line);border-radius:24px;overflow:hidden;
+    box-shadow:0 12px 40px rgba(0,0,0,.45);}
+  .scr-title{background:#0d1217;color:var(--sub);font-size:12px;padding:8px 16px;border-bottom:1px solid var(--line);
+    letter-spacing:.5px;}
+  .body{padding:20px;min-height:300px;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
+  .topbar .t{font-size:20px;font-weight:600;}
+  .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:13px;color:var(--sub);}
+  .pill.act{color:var(--accent);border-color:var(--accent);}
+  .sec{color:var(--sub);font-size:13px;margin:18px 0 10px;}
+  .devgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .dev{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 10px;text-align:center;}
+  .ic{width:54px;height:54px;border-radius:16px;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;
+    background:#26313d;}
+  .ic svg{width:30px;height:30px;}
+  .dev .nm{font-size:14px;font-weight:600;margin-bottom:4px;}
+  .dev .st{font-size:12px;}
+  .on{color:var(--accent2);} .off{color:var(--sub);}
+  .add{background:transparent;border:1.5px dashed var(--line);color:var(--sub);}
+  .add .ic{background:transparent;border:1.5px dashed var(--line);}
+  .row{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:14px 16px;margin-bottom:10px;}
+  .row .g{width:84px;font-weight:600;color:var(--accent);font-size:15px;}
+  .row .acts{flex:1;color:var(--txt);font-size:14px;line-height:1.5;}
+  .row .acts .empty{color:var(--sub);}
+  .chip{display:inline-block;background:#26313d;border-radius:8px;padding:3px 9px;font-size:12px;margin:2px 4px 2px 0;}
+  .plus{width:32px;height:32px;border-radius:10px;background:#26313d;color:var(--accent);display:flex;
+    align-items:center;justify-content:center;font-size:20px;}
+  .btn{background:var(--accent);color:#06222f;border:none;border-radius:12px;padding:12px 20px;font-size:15px;
+    font-weight:600;width:100%;margin-top:14px;}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt);}
+  .input{background:#0d1217;border:1px solid var(--line);border-radius:12px;padding:12px 14px;color:var(--txt);
+    font-size:14px;width:100%;margin-bottom:12px;}
+  .seg{display:flex;background:#0d1217;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:16px;}
+  .seg div{flex:1;text-align:center;padding:10px;font-size:14px;color:var(--sub);}
+  .seg div.sel{background:var(--panel2);color:var(--accent);}
+  .qr{width:150px;height:150px;border-radius:14px;background:
+    repeating-linear-gradient(0deg,#fff 0 8px,#0d1217 8px 16px),
+    repeating-linear-gradient(90deg,#fff 0 8px,transparent 8px 16px);
+    margin:6px auto 14px;border:6px solid #fff;}
+  .disc{background:#241f17;border:1px solid #3a3220;border-radius:12px;padding:12px 14px;font-size:12px;
+    color:var(--warn);line-height:1.6;}
+  .scanrow{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;margin-bottom:8px;
+    border:1px solid var(--line);}
+  .scanrow.hit{background:var(--panel);border-color:var(--accent);}
+  .scanrow.dim{opacity:.45;}
+  .scanrow .meta{flex:1;} .scanrow .nm{font-size:14px;font-weight:600;} .scanrow .mac{font-size:11px;color:var(--sub);}
+  .rssi{font-size:11px;color:var(--sub);}
+  .catwrap{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+  .cat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center;font-size:13px;}
+  .cat.sel{border-color:var(--accent);color:var(--accent);}
+  .actlist .a{display:flex;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line);font-size:14px;}
+  .ck{color:var(--accent2);}
+  .steps{display:flex;gap:6px;margin-bottom:16px;}
+  .steps span{flex:1;height:4px;border-radius:2px;background:var(--line);}
+  .steps span.on{background:var(--accent);}
+  .note{color:var(--sub);font-size:12px;margin-top:8px;line-height:1.6;}
+  .shrow{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:14px 16px;margin-bottom:10px;}
+  .shrow .meta{flex:1;} .shrow .nm{font-weight:600;font-size:14px;} .shrow .by{font-size:11px;color:var(--sub);}
+  .tag{font-size:11px;background:#26313d;border-radius:6px;padding:2px 8px;color:var(--sub);}
+</style>
+</head>
+<body>
+  <h1>蓝牙按键 · UI 设计稿 v1</h1>
+  <div class="cap">深色车载 HMI · 低饱和 · 8px 网格 · 大触摸区。每个按键设备 = 一个独立图标；点进去命名 + 设置单击/双击/长按。</div>
+
+  <div class="grid">
+
+    <!-- ① 主页 -->
+    <div class="screen">
+      <div class="scr-title">① 主页</div>
+      <div class="body">
+        <div class="topbar">
+          <div class="t">蓝牙按键</div>
+          <div style="display:flex;gap:8px;">
+            <span class="pill act">米家 已登录</span>
+            <span class="pill">设置</span>
+          </div>
+        </div>
+        <div class="sec">我的按键设备</div>
+        <div class="devgrid">
+          <div class="dev">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#7fb4d9" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2" fill="#7fb4d9"/><path d="M12 4v3M20 12h-3"/></svg></div>
+            <div class="nm">玄关旋钮</div>
+            <div class="st on">● 在线 · 3 绑定</div>
+          </div>
+          <div class="dev">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#a7d3a7" stroke-width="2"><rect x="6" y="4" width="12" height="16" rx="3"/><circle cx="12" cy="10" r="2.2" fill="#a7d3a7"/></svg></div>
+            <div class="nm">方控左键</div>
+            <div class="st on">● 在线 · 2 绑定</div>
+          </div>
+          <div class="dev">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#93a1b0" stroke-width="2"><rect x="5" y="7" width="14" height="10" rx="3"/><path d="M9 12h6"/></svg></div>
+            <div class="nm">床头按钮</div>
+            <div class="st off">○ 未发现</div>
+          </div>
+          <div class="dev add">
+            <div class="ic">＋</div>
+            <div class="nm" style="color:var(--sub)">添加设备</div>
+            <div class="st off">&nbsp;</div>
+          </div>
+        </div>
+        <div class="note">提示：每台设备一个图标，点击进入「按键编排页」。长按图标可重命名 / 删除。</div>
+      </div>
+    </div>
+
+    <!-- ③ 按键编排页 -->
+    <div class="screen">
+      <div class="scr-title">③ 按键编排页（点设备进入）</div>
+      <div class="body">
+        <div class="topbar">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="ic" style="width:44px;height:44px;margin:0;"><svg viewBox="0 0 24 24" fill="none" stroke="#7fb4d9" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2" fill="#7fb4d9"/></svg></div>
+            <div>
+              <input class="input" style="margin:0;width:200px;padding:8px 12px;" value="玄关旋钮">
+              <div class="note" style="margin-top:4px;">设备名（可改） · 米家旋钮</div>
+            </div>
+          </div>
+        </div>
+        <div class="sec">手势 → 动作（每个手势可绑多个，顺序执行）</div>
+        <div class="row"><div class="g">单击</div><div class="acts"><span class="chip">AC 开关</span><span class="chip">播放/暂停</span></div><div class="plus">＋</div></div>
+        <div class="row"><div class="g">双击</div><div class="acts"><span class="chip">360 环视</span></div><div class="plus">＋</div></div>
+        <div class="row"><div class="g">长按</div><div class="acts"><span class="empty">未绑定，点 ＋ 添加</span></div><div class="plus">＋</div></div>
+        <div class="note">手势集合由设备决定（旋钮=单击/双击/长按；带旋转的会多出左旋/右旋…）。</div>
+      </div>
+    </div>
+
+    <!-- ② 添加设备向导 -->
+    <div class="screen">
+      <div class="scr-title">② 添加设备向导</div>
+      <div class="body">
+        <div class="steps"><span class="on"></span><span class="on"></span><span></span></div>
+        <div class="topbar"><div class="t" style="font-size:17px;">步骤 1 · 扫描附近设备</div></div>
+        <div class="scanrow hit">
+          <div class="ic" style="width:40px;height:40px;margin:0;"><svg viewBox="0 0 24 24" fill="none" stroke="#7fb4d9" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2" fill="#7fb4d9"/></svg></div>
+          <div class="meta"><div class="nm">米家蓝牙旋钮 <span class="tag">已识别</span></div><div class="mac">A1:B2:C3:D4:E5:F6</div></div>
+          <div class="rssi">-58dBm</div>
+        </div>
+        <div class="scanrow dim">
+          <div class="ic" style="width:40px;height:40px;margin:0;"><svg viewBox="0 0 24 24" fill="none" stroke="#93a1b0" stroke-width="2"><rect x="5" y="7" width="14" height="10" rx="3"/></svg></div>
+          <div class="meta"><div class="nm">未知设备 BTN-09</div><div class="mac">11:22:33:44:55:66</div></div>
+          <div class="rssi">-77dBm</div>
+        </div>
+        <div class="note">步骤 2：选中需 BindKey 的设备 → 「从米家账号自动获取」或手动输入。<br>步骤 3：命名 → 保存即接入。未识别设备可去「共创广场」导入/自抓配置。</div>
+        <button class="btn">下一步</button>
+      </div>
+    </div>
+
+    <!-- ④ 米家账号页 -->
+    <div class="screen">
+      <div class="scr-title">④ 米家账号（登录一次，账号凭据不保存）</div>
+      <div class="body">
+        <div class="seg"><div class="sel">账号密码</div><div>扫码登录</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+          <div>
+            <input class="input" placeholder="小米账号 / 手机 / 邮箱">
+            <input class="input" placeholder="密码" type="password">
+            <select class="input"><option>区域：中国大陆 (cn)</option><option>新加坡 (sg)</option><option>德国 (de)</option></select>
+            <button class="btn">登录并拉取设备</button>
+          </div>
+          <div style="text-align:center;">
+            <div class="qr"></div>
+            <div class="note" style="text-align:center;">用「米家 / 小米」App 扫码确认登录</div>
+          </div>
+        </div>
+        <div class="disc" style="margin-top:16px;">
+          免责说明：本 App 仅在你授权下登录米家、读取你自己设备的 BindKey 与设备列表，用于本机离线解析按键。
+          账号密码 / 登录票据<b>用完即弃、不会保存或上传</b>。BindKey 仅加密存于本机。继续即表示你已知悉并同意。
+        </div>
+      </div>
+    </div>
+
+    <!-- 动作选择器 -->
+    <div class="screen">
+      <div class="scr-title">动作选择器（编排页点 ＋）</div>
+      <div class="body">
+        <div class="topbar"><div class="t" style="font-size:17px;">为「单击」添加动作</div></div>
+        <div class="catwrap">
+          <div class="cat sel">空调</div><div class="cat">座椅</div><div class="cat">车身</div>
+          <div class="cat">其它</div><div class="cat">系统</div><div class="cat">&nbsp;</div>
+        </div>
+        <div class="actlist">
+          <div class="a"><span>空调总开关</span></div>
+          <div class="a"><span>AC 开关</span><span class="ck">✓</span></div>
+          <div class="a"><span>AUTO 开关</span></div>
+          <div class="a"><span>风量 +</span></div>
+          <div class="a"><span>主驾温度 +</span></div>
+          <div class="a"><span>内外循环切换</span></div>
+        </div>
+        <div class="note">可多选，按选择顺序执行。解锁/开门/开后备箱等会自动「非 P 档拦截」。</div>
+      </div>
+    </div>
+
+    <!-- ⑤ 共创广场（本地） -->
+    <div class="screen">
+      <div class="scr-title">⑤ 共创广场（本地导入 / 导出分享）</div>
+      <div class="body">
+        <div class="topbar">
+          <div class="t" style="font-size:17px;">设备配置</div>
+          <div style="display:flex;gap:8px;"><span class="pill act">导入</span><span class="pill">＋ 自抓配置</span></div>
+        </div>
+        <div class="shrow">
+          <div class="ic" style="width:40px;height:40px;margin:0;"><svg viewBox="0 0 24 24" fill="none" stroke="#7fb4d9" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></div>
+          <div class="meta"><div class="nm">米家蓝牙旋钮 <span class="tag">内置</span></div><div class="by">mibeacon · 单击/双击/长按</div></div>
+        </div>
+        <div class="shrow">
+          <div class="ic" style="width:40px;height:40px;margin:0;"><svg viewBox="0 0 24 24" fill="none" stroke="#a7d3a7" stroke-width="2"><rect x="6" y="4" width="12" height="16" rx="3"/></svg></div>
+          <div class="meta"><div class="nm">某品牌单键按钮 <span class="tag">我导入</span></div><div class="by">advmatch · 作者 zhangyan</div></div>
+          <span class="pill">导出分享</span>
+        </div>
+        <div class="note">「自抓配置」：扫到未知设备→记录广播字节→定义 单击/长按 对应字节规则→存为可分享 JSON。
+          导出的配置<b>不含 BindKey</b>，可安全公开。云端共创广场后续再加。</div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

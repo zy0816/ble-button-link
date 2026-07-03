@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:background="@drawable/card_bg"
+    android:paddingVertical="22dp"
+    android:paddingHorizontal="10dp">
+
+    <FrameLayout
+        android:layout_width="74dp"
+        android:layout_height="74dp"
+        android:background="@drawable/icon_tile">
+
+        <ImageView
+            android:id="@+id/dev_icon"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_knob" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/dev_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="设备名"
+        android:textColor="@color/txt"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/dev_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
+        android:text="○ 未发现"
+        android:textColor="@color/sub"
+        android:textSize="15sp" />
+</LinearLayout>

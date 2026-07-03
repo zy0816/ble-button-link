@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">蓝牙按键</string>
+    <string name="service_channel_name">蓝牙按键服务</string>
+    <string name="service_notification_title">蓝牙按键运行中</string>
+    <string name="service_notification_text">正在监听蓝牙按键</string>
+</resources>

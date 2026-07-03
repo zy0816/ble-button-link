@@ -1,0 +1,14 @@
+# 构建产物
+.gradle/
+build/
+app/build/
+*/build/
+
+# 本机配置（各人 SDK 路径不同）
+local.properties
+
+# 系统垃圾
+.DS_Store
+
+# 车机厂商专有 API stub —— 不随仓库分发，请自行提取，详见 README
+app/libs/ecarx-adaptapi.jar

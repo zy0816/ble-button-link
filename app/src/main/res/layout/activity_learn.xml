@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg"
+    android:padding="28dp">
+
+    <TextView
+        android:id="@+id/btn_back"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:paddingVertical="6dp"
+        android:paddingEnd="20dp"
+        android:text="‹ 返回"
+        android:textColor="@color/accent"
+        android:textSize="18sp" />
+
+    <TextView
+        android:id="@+id/learn_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="自学习接入"
+        android:textColor="@color/txt"
+        android:textSize="28sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="点「学习新动作」后，对同一个动作连续操作 3 次（如：向左转 3 下）。学完给它命名，再回上一页绑定要执行的车控/应用等。"
+        android:textColor="@color/sub"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/btn_learn_new"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:background="@drawable/btn_accent"
+        android:gravity="center"
+        android:paddingVertical="18dp"
+        android:text="＋ 学习新动作"
+        android:textColor="@color/accent_ink"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="22dp"
+        android:text="已学动作"
+        android:textColor="@color/sub"
+        android:textSize="16sp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="12dp">
+
+        <LinearLayout
+            android:id="@+id/learn_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/learn_empty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingVertical="40dp"
+                android:text="还没有学习任何动作"
+                android:textColor="@color/sub"
+                android:textSize="16sp" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

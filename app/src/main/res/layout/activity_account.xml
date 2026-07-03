@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="28dp">
+
+        <TextView
+            android:id="@+id/btn_back"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:paddingVertical="6dp"
+            android:paddingEnd="20dp"
+            android:text="‹ 返回"
+            android:textColor="@color/accent"
+            android:textSize="18sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="米家账号"
+            android:textColor="@color/txt"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/state_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="登录仅用于一次性读取你已绑定设备的 BindKey，账号密码不保存、不上传。"
+            android:textColor="@color/sub"
+            android:textSize="16sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:background="@drawable/disclaimer_bg"
+            android:padding="16dp"
+            android:lineSpacingExtra="4dp"
+            android:text="免责说明：本功能为第三方实现的米家账号登录，仅在本机内存中临时持有登录票据用于拉取你自己设备的 BindKey，应用退出即清除，不会落盘、不会发送给除小米官方服务器以外的任何方。是否登录由你自行决定，使用即表示你理解并同意自担风险。"
+            android:textColor="@color/warn"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="horizontal"
+            android:background="@drawable/chip_bg"
+            android:padding="5dp">
+
+            <TextView
+                android:id="@+id/tab_pwd"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:paddingVertical="14dp"
+                android:text="账号密码"
+                android:textColor="@color/accent"
+                android:textSize="17sp"
+                android:background="@drawable/pill_accent" />
+
+            <TextView
+                android:id="@+id/tab_qr"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:paddingVertical="14dp"
+                android:text="扫码登录"
+                android:textColor="@color/sub"
+                android:textSize="17sp" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="服务器区域"
+            android:textColor="@color/sub"
+            android:textSize="16sp" />
+
+        <Spinner
+            android:id="@+id/region_spinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/input_bg"
+            android:padding="10dp"
+            android:minHeight="52dp" />
+
+        <LinearLayout
+            android:id="@+id/pwd_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="16dp">
+
+            <EditText
+                android:id="@+id/et_user"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/input_bg"
+                android:padding="16dp"
+                android:hint="账号（手机号 / 邮箱 / 小米 ID）"
+                android:textColorHint="@color/sub"
+                android:textColor="@color/txt"
+                android:inputType="text"
+                android:textSize="17sp" />
+
+            <EditText
+                android:id="@+id/et_pwd"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/input_bg"
+                android:padding="16dp"
+                android:hint="密码"
+                android:textColorHint="@color/sub"
+                android:textColor="@color/txt"
+                android:inputType="textPassword"
+                android:textSize="17sp" />
+
+            <TextView
+                android:id="@+id/btn_login"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:background="@drawable/btn_accent"
+                android:gravity="center"
+                android:paddingVertical="18dp"
+                android:text="登录"
+                android:textColor="@color/accent_ink"
+                android:textSize="19sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/qr_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:visibility="gone"
+            android:layout_marginTop="16dp">
+
+            <ImageView
+                android:id="@+id/qr_image"
+                android:layout_width="260dp"
+                android:layout_height="260dp"
+                android:background="#FFFFFF"
+                android:padding="10dp" />
+
+            <TextView
+                android:id="@+id/qr_hint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="用「米家 / 小米账号」App 扫码确认登录"
+                android:textColor="@color/sub"
+                android:textSize="16sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/logged_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/card_bg"
+                android:padding="18dp"
+                android:text="● 已登录米家"
+                android:textColor="@color/accent2"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/btn_logout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/btn_ghost"
+                android:gravity="center"
+                android:paddingVertical="18dp"
+                android:text="退出登录"
+                android:textColor="@color/txt"
+                android:textSize="18sp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

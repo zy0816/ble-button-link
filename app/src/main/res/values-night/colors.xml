@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 深色（随车机夜间模式）。 -->
+    <color name="bg">#11161C</color>
+    <color name="panel">#1B232C</color>
+    <color name="panel2">#222C37</color>
+    <color name="line">#2C3845</color>
+    <color name="txt">#E8EEF4</color>
+    <color name="sub">#93A1B0</color>
+    <color name="accent">#7FB4D9</color>
+    <color name="accent_ink">#06222F</color>
+    <color name="accent2">#A7D3A7</color>
+    <color name="warn">#D9B27F</color>
+    <color name="chip">#26313D</color>
+    <color name="input">#0D1217</color>
+    <color name="disc_bg">#241F17</color>
+    <color name="disc_line">#3A3220</color>
+</resources>
