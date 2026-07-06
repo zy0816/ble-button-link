@@ -79,6 +79,7 @@ public final class ActionCatalog {
         add("sys_volume_up", CAT_SYSTEM, "音量 +", false);
         add("sys_volume_down", CAT_SYSTEM, "音量 -", false);
         add("sys_volume_mute", CAT_SYSTEM, "静音切换", false);
+        add("sys_exterior_ptt", CAT_SYSTEM, "车外喊话（切换）", false);
     }
 
     private ActionCatalog() {

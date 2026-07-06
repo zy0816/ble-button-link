@@ -90,6 +90,10 @@ public final class ActionExecutor {
     }
 
     private void executeSystem(String key) {
+        if ("sys_exterior_ptt".equals(key)) {
+            com.selfclink.ble.audio.ExteriorVoice.get().toggle(context);
+            return;
+        }
         if (audio == null) {
             return;
         }

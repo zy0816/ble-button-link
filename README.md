@@ -32,6 +32,13 @@
 
 新设备可通过「共创」声明式 JSON Profile 扩展（`app/src/main/assets/profiles/*.json`），无需改代码。导出分享的 Profile **不含** BindKey，可安全公开。
 
+### 附带能力：车外喊话（PA 实时喊话）
+
+内置一路车外喊话：把车内麦克风的实时音频喂到车机「车外喇叭 / 行人提示喇叭」，一按开、再按关。可绑定到任意蓝牙手势（动作「车外喊话（切换）」），也能在「设置 → 车外喊话」手动开关。
+
+- 路由走车机 ecarx `Policy` 的车外音频属性（`USAGE_OCC_MIC` / `CONTENT_TYPE_OCC`），`AudioRecord → AudioTrack` 直通。
+- 需要 `RECORD_AUDIO` 权限，**仅用于车外喊话即时播放，录音不保存、不上传**。依赖车机具备车外喇叭 / PA 通道，无该通道的机型不生效。
+
 ---
 
 ## 如何使用
