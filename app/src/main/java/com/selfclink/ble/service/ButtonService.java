@@ -100,13 +100,23 @@ public final class ButtonService extends Service {
         if (device == null) {
             return; // 非已接入设备，忽略
         }
+        boolean diag = AppLog.isDiagEnabled();
+        if (diag) {
+            diagFrame(frame, device);
+        }
         ProductAdapter adapter = registry.byProductId(device.productId);
         if (adapter == null) {
+            if (diag) {
+                AppLog.diag(TAG, "  ✗ 找不到产品适配（productId=" + device.productId + "）");
+            }
             return;
         }
         byte[] cred = null;
         if (adapter.credentialSpec() == ProductAdapter.CredentialSpec.BINDKEY16) {
             if (device.bindKeyHex == null) {
+                if (diag) {
+                    AppLog.diag(TAG, "  ✗ 未配置 BindKey");
+                }
                 return;
             }
             cred = HexUtil.fromHex(device.bindKeyHex);
@@ -121,17 +131,52 @@ public final class ButtonService extends Service {
             g = adapter.parse(frame, cred);
         }
         if (g == null) {
+            if (diag) {
+                AppLog.diag(TAG, "  ✗ 未匹配任何手势（无此广播码，或 BindKey 错致解密失败）");
+            }
             return;
         }
         if (isDuplicate(frame.mac, g)) {
+            if (diag) {
+                AppLog.diag(TAG, "  · 命中「" + g.gestureId + "」但去重忽略（同一次按下）");
+            }
             return;
         }
         List<String> actions = device.actionsFor(g.gestureId);
         if (!actions.isEmpty()) {
             AppLog.d(TAG, "设备 " + device.name + " 手势 " + g.gestureId + " → " + actions);
+            if (diag) {
+                AppLog.diag(TAG, "  ✓ 命中「" + g.gestureId + "」→ 执行 " + actions);
+            }
             executor.executeAll(actions);
             feedback(device.name + " · " + g.gestureId);
+        } else if (diag) {
+            AppLog.diag(TAG, "  △ 命中「" + g.gestureId + "」但未绑定动作");
         }
+    }
+
+    /** 诊断模式：打印一帧的来源与解密结果（objId·value），供「按键诊断」页展示裁决前提。 */
+    private void diagFrame(ScanFrame frame, BoundDevice device) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(device.name).append("  rssi=").append(frame.rssi);
+        byte[] fe95 = frame.serviceData("fe95");
+        if (fe95 != null) {
+            sb.append("\n  fe95=").append(HexUtil.toHex(fe95));
+            if (device.bindKeyHex != null) {
+                try {
+                    com.selfclink.ble.protocol.MiBeacon.Result r =
+                            com.selfclink.ble.protocol.MiBeacon.parse(fe95, HexUtil.fromHex(device.bindKeyHex));
+                    if (r != null) {
+                        sb.append(String.format(java.util.Locale.US, "\n  → objId=0x%04X value=%s",
+                                r.objId, r.value == null ? "(无)" : HexUtil.toHex(r.value)));
+                    } else {
+                        sb.append("\n  → 待机/非事件帧或解密失败（BindKey 可能错误）");
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        AppLog.diag(TAG, sb.toString());
     }
 
     /** 自学习设备：解密 FE95 后按 objId + value 掩码匹配已学事件。 */

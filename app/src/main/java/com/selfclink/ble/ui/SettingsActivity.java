@@ -47,6 +47,8 @@ public final class SettingsActivity extends BackBarActivity {
                 startActivity(new Intent(this, AccountActivity.class)));
         findViewById(R.id.row_capture).setOnClickListener(v ->
                 startActivity(new Intent(this, CaptureActivity.class)));
+        findViewById(R.id.row_diag).setOnClickListener(v ->
+                startActivity(new Intent(this, DiagActivity.class)));
 
         SwitchCompat feedback = findViewById(R.id.switch_feedback);
         feedback.setChecked(AppPrefs.feedback(this));

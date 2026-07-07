@@ -133,6 +133,17 @@
         android:textSize="18sp" />
 
     <TextView
+        android:id="@+id/row_diag"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:background="@drawable/card_bg"
+        android:padding="22dp"
+        android:text="按键诊断 · 看按键为什么没反应"
+        android:textColor="@color/txt"
+        android:textSize="18sp" />
+
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="28dp"
