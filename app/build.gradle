@@ -10,8 +10,8 @@ android {
         applicationId "com.selfclink.ble"
         minSdk 24
         targetSdk 33
-        versionCode 12
-        versionName "3.9"
+        versionCode 18
+        versionName "3.15"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 

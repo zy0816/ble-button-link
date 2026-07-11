@@ -7,23 +7,29 @@ import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.AudioTrack;
 import android.media.MediaRecorder;
+import android.media.audiofx.AcousticEchoCanceler;
+import android.media.audiofx.NoiseSuppressor;
 
+import com.ecarx.xui.adaptapi.audio.audiofx.Audio;
 import com.ecarx.xui.adaptapi.policy.IAudioAttributes;
 import com.ecarx.xui.adaptapi.policy.Policy;
 import com.selfclink.ble.util.AppLog;
 
 /**
- * 车外喊话引擎：把车内麦克风的实时音频直接喂到<b>车外喇叭</b>（行人提示喇叭 / PA），实现「实时喊话」。
+ * 车外喊话引擎：把舱内麦克风的实时音频喊向<b>车外喇叭</b>（行人提示喇叭 / PA），实现「实时喊话」。
  *
- * <p>路由关键：车机 ecarx {@link Policy} 提供了一组按名解析的车外音频属性——
- * usage={@code USAGE_OCC_MIC}、contentType={@code CONTENT_TYPE_OCC}。用它构造
- * {@link AudioTrack} 的 {@link AudioAttributes}，车机音频策略便会把这路 PCM 输出到车外喇叭，
- * 无需单独去切 AVAS 开关。
+ * <p><b>路由</b>：车机 ecarx {@link Policy} 的车外音频属性 usage={@code USAGE_OCC_MIC}、
+ * contentType={@code CONTENT_TYPE_OCC} 构造 {@link AudioTrack}，车机音频策略即把这路 PCM
+ * 送到车外喇叭（此路已验证能出声）。
  *
- * <p>数据链：{@link AudioRecord}（MIC，16kHz 单声道 PCM16）实时读取 → 直接
- * {@link AudioTrack#write} 到车外喇叭。全程只在内存中转，<b>不落盘、不上传</b>。
+ * <p><b>降噪/回声消除</b>：录音源用 {@link MediaRecorder.AudioSource#VOICE_COMMUNICATION}
+ * ——这是平台为「扬声器+麦克风同时工作」（免提/喊话）准备的音源，会启用 DSP 自带的
+ * 声学回声消除（AEC）/降噪（NS）/自动增益（AGC），与原车车外喊话同一套硬件处理；
+ * 再在录音会话上显式挂 {@link AcousticEchoCanceler}/{@link NoiseSuppressor}/{@link AutomaticGainControl}
+ * 作双保险。之前 v3.8 用原始 {@code MIC} 源无任何处理，故有难听的回声。
  *
- * <p>进程内单例；{@link #toggle(Context)} 一按开、再按关。非 ecarx 环境（单测 JVM 等）静默降级。
+ * <p>{@code Audio.setMicOccupyState} 经反编译确认仅点亮仪表「喊话中」图标、不参与音频路由，
+ * 故此处只作最佳努力调用。进程内单例；{@link #toggle(Context)} 一按开、再按关。
  */
 public final class ExteriorVoice {
 
@@ -33,6 +39,13 @@ public final class ExteriorVoice {
     private static final int IN_CHANNEL = AudioFormat.CHANNEL_IN_MONO;
     private static final int OUT_CHANNEL = AudioFormat.CHANNEL_OUT_MONO;
     private static final int ENCODING = AudioFormat.ENCODING_PCM_16BIT;
+
+    /**
+     * 软件增益倍数：VOICE_COMMUNICATION 处理后电平偏低。语音是尖峰信号（峰值高、均值低），
+     * 用大增益 + {@code tanh} 饱和把更多语音推到接近满幅，抬高平均电平——像扩音喇叭那样把小
+     * 功率车外喇叭"催"到上限，听感才够响。饱和只加谐波不产生回声。
+     */
+    private static final float GAIN = 10.0f;
 
     private static ExteriorVoice instance;
 
@@ -55,11 +68,7 @@ public final class ExteriorVoice {
 
     /** 一键切换：开→关 / 关→开。返回切换后的状态（true=喊话中）。 */
     public synchronized boolean toggle(Context context) {
-        if (running) {
-            stop();
-        } else {
-            start(context);
-        }
+        setOn(context, !running);
         return running;
     }
 
@@ -71,7 +80,7 @@ public final class ExteriorVoice {
         if (on) {
             start(context);
         } else {
-            stop();
+            stop(context);
         }
     }
 
@@ -85,17 +94,20 @@ public final class ExteriorVoice {
             return;
         }
         running = true;
-        worker = new Thread(() -> loop(attrs), "exterior-voice");
+        final Context app = context.getApplicationContext();
+        worker = new Thread(() -> loop(app, attrs), "exterior-voice");
         worker.start();
+        notifyCluster(app, true);
         AppLog.d(TAG, "车外喊话已开启");
     }
 
-    private synchronized void stop() {
+    private synchronized void stop(Context context) {
         running = false;
         if (worker != null) {
             worker.interrupt();
             worker = null;
         }
+        notifyCluster(context.getApplicationContext(), false);
         AppLog.d(TAG, "车外喊话已关闭");
     }
 
@@ -122,21 +134,29 @@ public final class ExteriorVoice {
         }
     }
 
-    private void loop(AudioAttributes attrs) {
+    private void loop(Context context, AudioAttributes attrs) {
         AudioRecord record = null;
         AudioTrack track = null;
+        AcousticEchoCanceler aec = null;
+        NoiseSuppressor ns = null;
         try {
             int inBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE, IN_CHANNEL, ENCODING);
             int outBuf = AudioTrack.getMinBufferSize(SAMPLE_RATE, OUT_CHANNEL, ENCODING);
             if (inBuf <= 0) {
-                inBuf = SAMPLE_RATE; // 兜底 1s
+                inBuf = SAMPLE_RATE;
             }
             if (outBuf <= 0) {
                 outBuf = SAMPLE_RATE;
             }
 
-            record = new AudioRecord(MediaRecorder.AudioSource.MIC,
+            // VOICE_COMMUNICATION：启用 DSP 自带 AEC/降噪/AGC（免提/喊话专用音源）。
+            record = new AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION,
                     SAMPLE_RATE, IN_CHANNEL, ENCODING, inBuf);
+
+            // 只挂 AEC + 降噪：保留回声消除与降噪，但不挂 AGC——AGC 会把「喊话」拉平变小声。
+            int session = record.getAudioSessionId();
+            aec = enableAec(session);
+            ns = enableNs(session);
 
             AudioFormat outFormat = new AudioFormat.Builder()
                     .setSampleRate(SAMPLE_RATE)
@@ -152,6 +172,9 @@ public final class ExteriorVoice {
                 return;
             }
 
+            track.setVolume(AudioTrack.getMaxVolume());
+            maxOutStream(context, attrs);
+
             record.startRecording();
             track.play();
 
@@ -159,6 +182,7 @@ public final class ExteriorVoice {
             while (running && !Thread.currentThread().isInterrupted()) {
                 int n = record.read(frame, 0, frame.length);
                 if (n > 0) {
+                    amplify(frame, n, GAIN);
                     track.write(frame, 0, n);
                 } else if (n < 0) {
                     AppLog.d(TAG, "读麦克风返回 " + n + "，停止");
@@ -169,8 +193,91 @@ public final class ExteriorVoice {
             AppLog.d(TAG, "车外喊话循环异常: " + t.getMessage());
         } finally {
             running = false;
+            safeRelease(aec);
+            safeRelease(ns);
             safeStopRecord(record);
             safeStopTrack(track);
+        }
+    }
+
+    /** 把车外喇叭（OCC）音量流拉到最大，避免系统音量档位压低喊话声。 */
+    private static void maxOutStream(Context context, AudioAttributes attrs) {
+        try {
+            AudioManager am = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            int stream = attrs.getVolumeControlStream();
+            if (am == null || stream < 0) {
+                return;
+            }
+            am.setStreamVolume(stream, am.getStreamMaxVolume(stream), 0);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * 就地放大 16bit PCM 小端样本：先乘增益，再用 {@code tanh} 平滑饱和限幅到 [-1,1]。
+     * 相比硬削顶，安静处被大幅抬高、大声处平滑压住不破音——响且干净。
+     */
+    private static void amplify(byte[] buf, int len, float gain) {
+        for (int i = 0; i + 1 < len; i += 2) {
+            int raw = (short) ((buf[i] & 0xff) | (buf[i + 1] << 8));
+            double y = Math.tanh(gain * (raw / 32768.0));
+            int s = (int) Math.round(y * 32767.0);
+            buf[i] = (byte) (s & 0xff);
+            buf[i + 1] = (byte) ((s >> 8) & 0xff);
+        }
+    }
+
+    private static AcousticEchoCanceler enableAec(int session) {
+        if (!AcousticEchoCanceler.isAvailable()) {
+            AppLog.d(TAG, "本机不支持 AcousticEchoCanceler");
+            return null;
+        }
+        try {
+            AcousticEchoCanceler aec = AcousticEchoCanceler.create(session);
+            if (aec != null) {
+                aec.setEnabled(true);
+            }
+            return aec;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static NoiseSuppressor enableNs(int session) {
+        if (!NoiseSuppressor.isAvailable()) {
+            return null;
+        }
+        try {
+            NoiseSuppressor ns = NoiseSuppressor.create(session);
+            if (ns != null) {
+                ns.setEnabled(true);
+            }
+            return ns;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** 通知 HMI 仪表点亮/熄灭「喊话中」图标；纯 UI，失败不影响音频。 */
+    private void notifyCluster(Context context, boolean on) {
+        try {
+            Audio audio = Audio.create(context);
+            if (audio == null) {
+                return;
+            }
+            audio.setMicOccupyState(on ? Audio.MicOccupyState.MIC_OCCUPYSTATE_ON
+                    : Audio.MicOccupyState.MIC_OCCUPYSTATE_OFF);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void safeRelease(android.media.audiofx.AudioEffect effect) {
+        if (effect == null) {
+            return;
+        }
+        try {
+            effect.release();
+        } catch (Throwable ignored) {
         }
     }
 

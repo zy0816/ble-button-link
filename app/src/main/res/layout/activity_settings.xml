@@ -110,7 +110,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="麦克风实时喊向车外喇叭 · 录音仅即时播放，不保存、不上传"
+                android:text="麦克风实时喊向车外喇叭 · DSP 自带降噪回声消除 · 不保存、不上传"
                 android:textColor="@color/sub"
                 android:textSize="14sp" />
         </LinearLayout>
