@@ -8,6 +8,7 @@ import com.ecarx.xui.adaptapi.car.Car;
 import com.ecarx.xui.adaptapi.car.ICar;
 import com.ecarx.xui.adaptapi.car.base.ICarFunction;
 import com.ecarx.xui.adaptapi.car.sensor.ISensor;
+import com.ecarx.xui.adaptapi.car.userprofile.IUserProfile;
 import com.selfclink.ble.util.AppLog;
 
 import java.util.ArrayList;
@@ -304,6 +305,23 @@ public final class EcarxCarManager {
 
     public synchronized boolean isConnected() {
         return connected;
+    }
+
+    /** 切换「用车习惯」(profile 偏好) 到指定 id（1/2/3）。未连接或异常返回 false。 */
+    public synchronized boolean switchUserPreference(int preferenceId) {
+        if (car == null) {
+            return false;
+        }
+        try {
+            IUserProfile profile = car.getUserProfileManager();
+            if (profile == null) {
+                return false;
+            }
+            return profile.switchPreference(preferenceId);
+        } catch (Throwable t) {
+            AppLog.d(TAG, "switchPreference(" + preferenceId + ") 失败: " + t.getMessage());
+            return false;
+        }
     }
 
     // ---------------- 车身功能写入（场景助手车控动作用） ----------------

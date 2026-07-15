@@ -43,11 +43,27 @@ public final class VehicleController {
     private static final int FUNC_ONE_KEY_CLOSE = 540126208;
     private static final int FUNC_CHARGE_CAP = 553780480;
     private static final int FUNC_CAMERA_360 = 587399424;
+    /**
+     * IVehicle.SETTING_FUNC_PARK_COMFORT_MODE_TIMER：驻车舒享。实车抓包证实其真实写入是
+     * <b>浮点时长（小时）</b>——{@code setCustomizeFunctionValue(538837248, ZONE_ALL, 8.5f)} 开、
+     * {@code 0.0f} 关。旧版误用 {@code setFunctionValue}（int）+ 大数值，故一直不生效。
+     */
     private static final int FUNC_PARK_COMFORT = 538837248;
-    private static final int PARK_COMFORT_30MIN = 538640642;
+    /** 驻车舒享默认时长（小时），与原车快捷开关默认一致（抓包实测 8.5）。 */
+    private static final float PARK_COMFORT_HOURS = 8.5f;
     private static final int FUNC_DOOR_AUTO_MAN = 554762880;
+    /** IVehicle.SETTING_FUNC_LOCK_REAR_SEAT_DISPLAY：后排屏幕锁定，1=锁 0=解。 */
+    private static final int FUNC_REAR_SCREEN_LOCK = 538706176;
 
     private final EcarxCarManager car = EcarxCarManager.getInstance();
+
+    /**
+     * 电动车门读回的是物理位置（开合过程返回 255 等），不是干净的开/关指令态，读回做切换会「只开不关」。
+     * 后排屏幕锁定同理：读不到就会卡在锁定态。故这两类开关一律用应用内记忆的「上次指令态」做聚合切换。
+     */
+    private final java.util.HashMap<Integer, Boolean> doorOpen = new java.util.HashMap<>();
+    private boolean rearScreenLocked;
+    private boolean parkComfortOn;
 
     public VehicleController(Context context) {
         // 即使没有其它车态规则也要确保连接就绪，旋钮按下时才能写得进去。
@@ -117,6 +133,12 @@ public final class VehicleController {
             case "car_parking_comfort": toggleParkComfort(); break;
             case "car_manual_door_front": toggleManualDoor(ZONE_DRV, ZONE_PASS); break;
             case "car_manual_door_rear": toggleManualDoor(16, 64); break;
+            case "car_rear_screen_lock": toggleRearScreenLock(); break;
+
+            // ---- 用车习惯（走 ecarx UserProfile.switchPreference）----
+            case "car_user_habit_1": car.switchUserPreference(1); break;
+            case "car_user_habit_2": car.switchUserPreference(2); break;
+            case "car_user_habit_3": car.switchUserPreference(3); break;
 
             default:
                 AppLog.d(TAG, "未知车控动作: " + key);
@@ -212,13 +234,32 @@ public final class VehicleController {
         car.setCustomizeFunction(IBcm.BCM_FUNC_WINDOW_POS, zone, target);
     }
 
-    /** 车门开关（非 P 档拦截）。 */
+    /**
+     * 车门开关聚合（非 P 档拦截）：按一次开、再按一次关，和原车一致。
+     * 读回是物理位置不可靠，用应用内记忆的上次指令态翻转；写成功才更新记忆。
+     */
     private void toggleDoor(int zone) {
         if (!guardPark("开门")) {
             return;
         }
-        int cur = car.readFunction(IBcm.BCM_FUNC_DOOR, zone);
-        car.setFunction(IBcm.BCM_FUNC_DOOR, zone, cur == IBcm.DOOR_OPEN ? IBcm.DOOR_CLOSE : IBcm.DOOR_OPEN);
+        boolean open = Boolean.TRUE.equals(doorOpen.get(zone));   // 无记录默认视为关着
+        boolean next = !open;
+        boolean ok = car.setFunction(IBcm.BCM_FUNC_DOOR, zone, next ? IBcm.DOOR_OPEN : IBcm.DOOR_CLOSE);
+        if (ok) {
+            doorOpen.put(zone, next);
+        }
+    }
+
+    /**
+     * 后排屏幕锁定聚合切换：按一次锁、再按一次解。实车抓包证实真实写入是
+     * {@code setFunctionValue(538706176, ZONE_ALL, 1/0)}（flag=true 生效）；旧版误传 zone=0 故不生效。
+     */
+    private void toggleRearScreenLock() {
+        boolean next = !rearScreenLocked;
+        boolean ok = car.setFunction(FUNC_REAR_SCREEN_LOCK, ZONE_ALL, next ? ON : OFF);
+        if (ok) {
+            rearScreenLocked = next;
+        }
     }
 
     private void toggle360() {
@@ -226,9 +267,15 @@ public final class VehicleController {
         car.setFunction(FUNC_CAMERA_360, 0, cur == 1 ? 0 : 1);
     }
 
+    /**
+     * 驻车舒享聚合切换：开 = 写浮点时长 8.5 小时，关 = 写 0.0。读回是 255（无效哨兵），用应用内记忆态翻转。
+     */
     private void toggleParkComfort() {
-        int cur = car.readFunction(FUNC_PARK_COMFORT, ZONE_ALL);
-        car.setFunction(FUNC_PARK_COMFORT, ZONE_ALL, cur != 0 ? 0 : PARK_COMFORT_30MIN);
+        boolean next = !parkComfortOn;
+        boolean ok = car.setCustomizeFunction(FUNC_PARK_COMFORT, ZONE_ALL, next ? PARK_COMFORT_HOURS : 0.0f);
+        if (ok) {
+            parkComfortOn = next;
+        }
     }
 
     private void toggleManualDoor(int zoneL, int zoneR) {

@@ -71,6 +71,7 @@ public final class ActionCatalog {
         // ---- 其它 ----
         add("car_camera_360", CAT_OTHER, "360 环视", false);
         add("car_parking_comfort", CAT_OTHER, "驻车舒享", false);
+        add("car_rear_screen_lock", CAT_OTHER, "后排屏幕锁定", false);
 
         // ---- 系统 ----
         add("sys_media_play_pause", CAT_SYSTEM, "播放/暂停", false);
@@ -80,6 +81,9 @@ public final class ActionCatalog {
         add("sys_volume_down", CAT_SYSTEM, "音量 -", false);
         add("sys_volume_mute", CAT_SYSTEM, "静音切换", false);
         add("sys_exterior_ptt", CAT_SYSTEM, "车外喊话（切换）", false);
+        add("car_user_habit_1", CAT_SYSTEM, "用车习惯 1", false);
+        add("car_user_habit_2", CAT_SYSTEM, "用车习惯 2", false);
+        add("car_user_habit_3", CAT_SYSTEM, "用车习惯 3", false);
     }
 
     private ActionCatalog() {
