@@ -58,8 +58,9 @@ public final class VehicleController {
     private final EcarxCarManager car = EcarxCarManager.getInstance();
 
     /**
-     * 电动车门读回的是物理位置（开合过程返回 255 等），不是干净的开/关指令态，读回做切换会「只开不关」。
-     * 后排屏幕锁定同理：读不到就会卡在锁定态。故这两类开关一律用应用内记忆的「上次指令态」做聚合切换。
+     * 车门「上次指令态」记忆——仅作 {@link #toggleDoor} 读不到真实位置时的兜底。
+     * 车门优先按 {@code BCM_FUNC_DOOR_POS} 的真实物理位置判定开/关（与原车 SystemUI
+     * CarBodyStateManager 一致：位置驱动），避免记忆态与实车错位导致「想开却发了关、只降点窗门不开」。
      */
     private final java.util.HashMap<Integer, Boolean> doorOpen = new java.util.HashMap<>();
     private boolean rearScreenLocked;
@@ -236,14 +237,29 @@ public final class VehicleController {
 
     /**
      * 车门开关聚合（非 P 档拦截）：按一次开、再按一次关，和原车一致。
-     * 读回是物理位置不可靠，用应用内记忆的上次指令态翻转；写成功才更新记忆。
+     *
+     * <p><b>位置驱动（对齐原车 SystemUI）</b>：先读 {@code BCM_FUNC_DOOR_POS} 的真实门位置决定开/关，
+     * 而非盲翻应用内记忆——原来只靠记忆态，一旦车门被非 App 途径（手动关门/自动合门/物理把手）开关过，
+     * 记忆就与实车错位，会在你想开门时错发关门指令：无框门只降一点窗做密封复位、门却不开（即上报的故障）。
+     * 门位置在开合<b>运动过程</b>会返回 255 等无效值，仅当读数落在有效区间 [0,100] 才采信（0=关，&gt;0=开），
+     * 否则退回记忆态兜底。写成功后同步记忆。
      */
     private void toggleDoor(int zone) {
         if (!guardPark("开门")) {
             return;
         }
-        boolean open = Boolean.TRUE.equals(doorOpen.get(zone));   // 无记录默认视为关着
+        int pos = car.readFunction(IBcm.BCM_FUNC_DOOR_POS, zone);
+        boolean open;
+        boolean posValid = pos >= 0 && pos <= 100;
+        if (posValid) {
+            open = pos > 0;                 // 读到真实位置：0=关，>0=开
+            doorOpen.put(zone, open);       // 同步记忆，纠正历史错位
+        } else {
+            open = Boolean.TRUE.equals(doorOpen.get(zone));   // 无效读数（255/未连接）→退回记忆态
+        }
         boolean next = !open;
+        AppLog.d(TAG, "开门 zone=" + zone + " pos读回=" + pos + (posValid ? "(有效)" : "(无效→用记忆)")
+                + " 判定门" + (open ? "开" : "关") + " → 发" + (next ? "开门" : "关门"));
         boolean ok = car.setFunction(IBcm.BCM_FUNC_DOOR, zone, next ? IBcm.DOOR_OPEN : IBcm.DOOR_CLOSE);
         if (ok) {
             doorOpen.put(zone, next);
