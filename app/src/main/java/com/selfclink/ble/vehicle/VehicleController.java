@@ -112,7 +112,7 @@ public final class VehicleController {
             case "car_unlock":
                 if (guardPark("解锁")) car.setFunction(FUNC_CENTRAL_LOCK, ZONE_ALL, OFF);
                 break;
-            case "car_trunk": toggleDoor(ZONE_TRUNK, "开后备箱"); break;
+            case "car_trunk": toggleTrunk(); break;
             case "car_mirror": toggleZoned(IBcm.BCM_FUNC_FOLD_REAR_MIRROR, ZONE_ALL); break;
             case "car_one_key_close": car.setFunction(FUNC_ONE_KEY_CLOSE, ZONE_ALL, 0); break;
 
@@ -246,12 +246,12 @@ public final class VehicleController {
         toggleDoor(zone, "开门");
     }
 
-    /** 同 {@link #toggleDoor(int)}，{@code label} 用于挡位拦截提示（如后备箱/尾门 DOOR_REAR 同走位置驱动）。 */
+    /** 同 {@link #toggleDoor(int)}，{@code label} 用于挡位拦截提示。 */
     private void toggleDoor(int zone, String label) {
         if (!guardPark(label)) {
             return;
         }
-        // 门位置是浮点信号：须用 readCustomizeFunction 读（int 读恒得 255 无效）。实测 0.0=关、>0=开。
+        // 门位置是浮点信号：须用 readCustomizeFunction 读（int 读恒得 255 无效）。实测侧门 0.0=关、>0=开。
         float pos = car.readCustomizeFunction(IBcm.BCM_FUNC_DOOR_POS, zone);
         boolean posValid = !Float.isNaN(pos) && pos >= 0f && pos <= 100f;
         boolean open;
@@ -267,6 +267,30 @@ public final class VehicleController {
         boolean ok = car.setFunction(IBcm.BCM_FUNC_DOOR, zone, next ? IBcm.DOOR_OPEN : IBcm.DOOR_CLOSE);
         if (ok) {
             doorOpen.put(zone, next);
+        }
+    }
+
+    /**
+     * 尾门/后备箱（DOOR_REAR）：侧门的 {@code BCM_FUNC_DOOR_POS} 浮点位置在尾门上读不到真实态
+     * （v3.25 误套导致「只开不关」），故暂用记忆翻转保证能开能关；同时打印候选信号，用于定位尾门
+     * 真正的位置源（疑为 {@code BCM_FUNC_REAR_DOOR_OPEN_POS}），确认后再改回位置驱动。
+     */
+    private void toggleTrunk() {
+        if (!guardPark("开后备箱")) {
+            return;
+        }
+        int z = ZONE_TRUNK;
+        AppLog.d(TAG, "后备箱探针 DOOR_POS_f=" + car.readCustomizeFunction(IBcm.BCM_FUNC_DOOR_POS, z)
+                + " REAR_OPEN_POS_f=" + car.readCustomizeFunction(554762864, z)
+                + " REAR_OPEN_POS_i=" + car.readFunction(554762864, z)
+                + " DOOR_i=" + car.readFunction(IBcm.BCM_FUNC_DOOR, z)
+                + " PERC_i=" + car.readFunction(554762848, z));
+        boolean open = Boolean.TRUE.equals(doorOpen.get(z));
+        boolean next = !open;
+        AppLog.d(TAG, "开后备箱 记忆开=" + open + " → 发" + (next ? "开" : "关"));
+        boolean ok = car.setFunction(IBcm.BCM_FUNC_DOOR, z, next ? IBcm.DOOR_OPEN : IBcm.DOOR_CLOSE);
+        if (ok) {
+            doorOpen.put(z, next);
         }
     }
 
