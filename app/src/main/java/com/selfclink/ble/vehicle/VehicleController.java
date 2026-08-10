@@ -251,17 +251,18 @@ public final class VehicleController {
         if (!guardPark(label)) {
             return;
         }
-        int pos = car.readFunction(IBcm.BCM_FUNC_DOOR_POS, zone);
+        // 门位置是浮点信号：须用 readCustomizeFunction 读（int 读恒得 255 无效）。实测 0.0=关、>0=开。
+        float pos = car.readCustomizeFunction(IBcm.BCM_FUNC_DOOR_POS, zone);
+        boolean posValid = !Float.isNaN(pos) && pos >= 0f && pos <= 100f;
         boolean open;
-        boolean posValid = pos >= 0 && pos <= 100;
         if (posValid) {
-            open = pos > 0;                 // 读到真实位置：0=关，>0=开
+            open = pos > 0.5f;              // 读到真实位置：≈0=关，>0=开
             doorOpen.put(zone, open);       // 同步记忆，纠正历史错位
         } else {
-            open = Boolean.TRUE.equals(doorOpen.get(zone));   // 无效读数（255/未连接）→退回记忆态
+            open = Boolean.TRUE.equals(doorOpen.get(zone));   // 无效读数（NaN/未连接）→退回记忆态
         }
         boolean next = !open;
-        AppLog.d(TAG, label + " zone=" + zone + " pos读回=" + pos + (posValid ? "(有效)" : "(无效→用记忆)")
+        AppLog.d(TAG, label + " zone=" + zone + " 位置=" + pos + (posValid ? "" : "(无效→用记忆)")
                 + " 判定" + (open ? "开" : "关") + " → 发" + (next ? "开" : "关"));
         boolean ok = car.setFunction(IBcm.BCM_FUNC_DOOR, zone, next ? IBcm.DOOR_OPEN : IBcm.DOOR_CLOSE);
         if (ok) {
