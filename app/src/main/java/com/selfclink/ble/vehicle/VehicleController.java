@@ -112,9 +112,7 @@ public final class VehicleController {
             case "car_unlock":
                 if (guardPark("解锁")) car.setFunction(FUNC_CENTRAL_LOCK, ZONE_ALL, OFF);
                 break;
-            case "car_trunk":
-                if (guardPark("开后备箱")) toggleZoned(IBcm.BCM_FUNC_DOOR, ZONE_TRUNK);
-                break;
+            case "car_trunk": toggleDoor(ZONE_TRUNK, "开后备箱"); break;
             case "car_mirror": toggleZoned(IBcm.BCM_FUNC_FOLD_REAR_MIRROR, ZONE_ALL); break;
             case "car_one_key_close": car.setFunction(FUNC_ONE_KEY_CLOSE, ZONE_ALL, 0); break;
 
@@ -245,7 +243,12 @@ public final class VehicleController {
      * 否则退回记忆态兜底。写成功后同步记忆。
      */
     private void toggleDoor(int zone) {
-        if (!guardPark("开门")) {
+        toggleDoor(zone, "开门");
+    }
+
+    /** 同 {@link #toggleDoor(int)}，{@code label} 用于挡位拦截提示（如后备箱/尾门 DOOR_REAR 同走位置驱动）。 */
+    private void toggleDoor(int zone, String label) {
+        if (!guardPark(label)) {
             return;
         }
         int pos = car.readFunction(IBcm.BCM_FUNC_DOOR_POS, zone);
@@ -258,8 +261,8 @@ public final class VehicleController {
             open = Boolean.TRUE.equals(doorOpen.get(zone));   // 无效读数（255/未连接）→退回记忆态
         }
         boolean next = !open;
-        AppLog.d(TAG, "开门 zone=" + zone + " pos读回=" + pos + (posValid ? "(有效)" : "(无效→用记忆)")
-                + " 判定门" + (open ? "开" : "关") + " → 发" + (next ? "开门" : "关门"));
+        AppLog.d(TAG, label + " zone=" + zone + " pos读回=" + pos + (posValid ? "(有效)" : "(无效→用记忆)")
+                + " 判定" + (open ? "开" : "关") + " → 发" + (next ? "开" : "关"));
         boolean ok = car.setFunction(IBcm.BCM_FUNC_DOOR, zone, next ? IBcm.DOOR_OPEN : IBcm.DOOR_CLOSE);
         if (ok) {
             doorOpen.put(zone, next);
