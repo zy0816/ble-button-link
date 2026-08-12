@@ -5,12 +5,16 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
+
+import java.util.LinkedHashMap;
 
 import com.selfclink.ble.R;
 import com.selfclink.ble.automation.BoundDevice;
@@ -56,6 +60,13 @@ public final class LearnActivity extends BackBarActivity {
     private AlertDialog captureDialog;
     private TextView captureText;
 
+    // ---- 手动选择状态：实时列出解密到的不同编码 ----
+    private boolean selecting;
+    private final LinkedHashMap<String, int[]> pickObj = new LinkedHashMap<>();   // key=objId+value hex → {objId}
+    private final LinkedHashMap<String, byte[]> pickVal = new LinkedHashMap<>();   // key → value
+    private AlertDialog selectDialog;
+    private LinearLayout pickList;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -82,7 +93,7 @@ public final class LearnActivity extends BackBarActivity {
         bindKey = HexUtil.fromHex(device.bindKeyHex);
 
         ((TextView) findViewById(R.id.learn_title)).setText("自学习 · " + device.name);
-        findViewById(R.id.btn_learn_new).setOnClickListener(v -> startCapture());
+        findViewById(R.id.btn_learn_new).setOnClickListener(v -> chooseMode());
 
         scanner = new BleScanner(this, this::onFrame);
         renderList();
@@ -104,7 +115,206 @@ public final class LearnActivity extends BackBarActivity {
         }
     }
 
-    // ---------------- 捕获 ----------------
+    // ---------------- 入口三选一 ----------------
+
+    private void chooseMode() {
+        new AlertDialog.Builder(this)
+                .setTitle("学习新动作")
+                .setItems(new CharSequence[]{
+                        "自动学习（连按 3 次）",
+                        "手动选择编码（看列表点选）",
+                        "手动填写编码（填 hex）"}, (d, which) -> {
+                    if (which == 0) {
+                        startCapture();
+                    } else if (which == 1) {
+                        startManualSelect();
+                    } else {
+                        manualEntry();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    // ---------------- 手动选择编码：实时列出编码点选 ----------------
+
+    private void startManualSelect() {
+        selecting = true;
+        lastFcnt = -1;
+        pickObj.clear();
+        pickVal.clear();
+
+        pickList = new LinearLayout(this);
+        pickList.setOrientation(LinearLayout.VERTICAL);
+        int p = dp(20);
+        pickList.setPadding(p, dp(8), p, dp(8));
+        refreshPickList();
+
+        ScrollView sv = new ScrollView(this);
+        sv.addView(pickList);
+
+        selectDialog = new AlertDialog.Builder(this)
+                .setTitle("操作你的按钮，点中对应编码")
+                .setView(sv)
+                .setNegativeButton("完成", (d, w) -> selecting = false)
+                .setOnCancelListener(d -> selecting = false)
+                .create();
+        selectDialog.show();
+    }
+
+    private void refreshPickList() {
+        if (pickList == null) {
+            return;
+        }
+        pickList.removeAllViews();
+        if (pickObj.isEmpty()) {
+            TextView tv = new TextView(this);
+            tv.setText("等待按键广播…\n请单击 / 双击 / 长按你的按钮，\n每种不同编码会实时出现在下面。");
+            tv.setTextColor(getColor(R.color.sub));
+            tv.setTextSize(14);
+            pickList.addView(tv);
+            return;
+        }
+        for (String key : pickObj.keySet()) {
+            int objId = pickObj.get(key)[0];
+            byte[] val = pickVal.get(key);
+            TextView row = new TextView(this);
+            row.setText(String.format(java.util.Locale.US, "objId=0x%04X   value=%s",
+                    objId, val.length == 0 ? "(无)" : HexUtil.toHex(val)));
+            row.setTextColor(getColor(R.color.txt));
+            row.setTextSize(16);
+            row.setBackgroundResource(R.drawable.card_bg);
+            int q = dp(16);
+            row.setPadding(q, q, q, q);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.bottomMargin = dp(10);
+            row.setLayoutParams(lp);
+            row.setOnClickListener(v -> {
+                selecting = false;
+                if (selectDialog != null) {
+                    selectDialog.dismiss();
+                }
+                onPicked(objId, val);
+            });
+            pickList.addView(row);
+        }
+    }
+
+    /** 点中一条编码 → 选匹配方式 + 命名保存。 */
+    private void onPicked(int objId, byte[] value) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int p = dp(20);
+        box.setPadding(p, dp(8), p, 0);
+
+        CheckBox exact = new CheckBox(this);
+        exact.setText("精确匹配 value（区分同 objId 的双击/长按）");
+        exact.setChecked(value.length > 0);
+        box.addView(exact);
+
+        EditText et = new EditText(this);
+        et.setHint("命名，如 单击 / 双击 / 长按");
+        et.setPadding(0, dp(12), 0, dp(12));
+        box.addView(et);
+
+        new AlertDialog.Builder(this)
+                .setTitle(String.format(java.util.Locale.US, "objId=0x%04X value=%s",
+                        objId, value.length == 0 ? "(无)" : HexUtil.toHex(value)))
+                .setView(box)
+                .setPositiveButton("保存", (d, w) -> {
+                    String label = et.getText().toString().trim();
+                    if (label.isEmpty()) {
+                        label = "动作" + (device.learned.size() + 1);
+                    }
+                    saveMasked(label, objId, value, exact.isChecked());
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    // ---------------- 手动填写编码：直接填 hex ----------------
+
+    private void manualEntry() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int p = dp(20);
+        box.setPadding(p, dp(8), p, 0);
+
+        final EditText objEt = new EditText(this);
+        objEt.setHint("objId (hex)，如 1001");
+        objEt.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        box.addView(objEt);
+
+        final EditText valEt = new EditText(this);
+        valEt.setHint("value (hex)，可留空，如 0100");
+        valEt.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        box.addView(valEt);
+
+        final CheckBox exact = new CheckBox(this);
+        exact.setText("精确匹配 value（区分双击/长按）");
+        exact.setChecked(true);
+        box.addView(exact);
+
+        final EditText nameEt = new EditText(this);
+        nameEt.setHint("命名，如 长按");
+        box.addView(nameEt);
+
+        new AlertDialog.Builder(this)
+                .setTitle("手动填写编码")
+                .setView(box)
+                .setPositiveButton("保存", (d, w) -> {
+                    Integer objId = parseHexInt(objEt.getText().toString().trim());
+                    if (objId == null) {
+                        toast("objId 填写有误（十六进制，如 1001）");
+                        return;
+                    }
+                    byte[] value = HexUtil.fromHex(valEt.getText().toString().trim().replaceAll("\\s", ""));
+                    String label = nameEt.getText().toString().trim();
+                    if (label.isEmpty()) {
+                        label = "动作" + (device.learned.size() + 1);
+                    }
+                    saveMasked(label, objId, value == null ? new byte[0] : value,
+                            exact.isChecked() && value != null && value.length > 0);
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private static Integer parseHexInt(String s) {
+        if (s == null || s.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(s.replaceFirst("(?i)^0x", ""), 16);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** 由 objId+value+是否精确 生成掩码并做冲突校验后保存。 */
+    private void saveMasked(String label, int objId, byte[] value, boolean exactValue) {
+        byte[] mask;
+        byte[] expected;
+        if (exactValue && value.length > 0) {
+            mask = new byte[value.length];
+            java.util.Arrays.fill(mask, (byte) 0xFF);
+            expected = value.clone();
+        } else {
+            mask = new byte[0];
+            expected = new byte[0];
+        }
+        LearnedEvent candidate = new LearnedEvent("tmp", label, objId, mask, expected);
+        for (LearnedEvent e : device.learned) {
+            if (e.matches(objId, value) || candidate.matches(e.objId, sampleValFor(e))) {
+                toast("与已有动作『" + e.label + "』无法区分；换一条或勾选精确匹配再试");
+                return;
+            }
+        }
+        saveEvent(label, objId, mask, expected);
+    }
+
+    // ---------------- 自动学习 ----------------
 
     private void startCapture() {
         sampleObj.clear();
@@ -129,7 +339,7 @@ public final class LearnActivity extends BackBarActivity {
     }
 
     private void onFrame(ScanFrame frame) {
-        if (!capturing || device == null || !frame.mac.equalsIgnoreCase(device.mac)) {
+        if ((!capturing && !selecting) || device == null || !frame.mac.equalsIgnoreCase(device.mac)) {
             return;
         }
         byte[] fe95 = frame.serviceData("fe95");
@@ -146,7 +356,25 @@ public final class LearnActivity extends BackBarActivity {
         lastFcnt = r.frameCounter;
         final int objId = r.objId;
         final byte[] val = r.value == null ? new byte[0] : r.value.clone();
-        main.post(() -> addSample(objId, val));
+        if (capturing) {
+            main.post(() -> addSample(objId, val));
+        } else {
+            main.post(() -> addPick(objId, val));
+        }
+    }
+
+    /** 手动选择模式：把新出现的不同编码加入实时列表（同 objId+value 去重）。 */
+    private void addPick(int objId, byte[] val) {
+        if (!selecting) {
+            return;
+        }
+        String key = String.format(java.util.Locale.US, "%04X:%s", objId, HexUtil.toHex(val));
+        if (pickObj.containsKey(key)) {
+            return;
+        }
+        pickObj.put(key, new int[]{objId});
+        pickVal.put(key, val);
+        refreshPickList();
     }
 
     private void addSample(int objId, byte[] val) {
