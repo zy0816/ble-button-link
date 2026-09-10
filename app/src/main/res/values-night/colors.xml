@@ -1,18 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 深色（随车机夜间模式）。 -->
-    <color name="bg">#11161C</color>
-    <color name="panel">#1B232C</color>
-    <color name="panel2">#222C37</color>
-    <color name="line">#2C3845</color>
-    <color name="txt">#E8EEF4</color>
-    <color name="sub">#93A1B0</color>
-    <color name="accent">#7FB4D9</color>
-    <color name="accent_ink">#06222F</color>
-    <color name="accent2">#A7D3A7</color>
-    <color name="warn">#D9B27F</color>
-    <color name="chip">#26313D</color>
-    <color name="input">#0D1217</color>
+    <!-- iOS 深色（随车机夜间）。 -->
+    <color name="bg">#000000</color>
+    <color name="panel">#1C1C1E</color>
+    <color name="panel2">#2C2C2E</color>
+    <color name="elev3">#3A3A3C</color>
+    <color name="line">#38383A</color>
+    <color name="txt">#FFFFFF</color>
+    <color name="sub">#98989F</color>
+    <color name="sub3">#68686E</color>
+    <color name="input">#1C1C1E</color>
+    <color name="chip">#2C2C2E</color>
+
+    <color name="accent">#30D158</color>
+    <color name="accent_ink">#FFFFFF</color>
+    <color name="accent2">#30D158</color>
+    <color name="warn">#FF453A</color>
+    <color name="red">#FF453A</color>
+
+    <color name="c_green">#30D158</color>
+    <color name="c_orange">#FF9F0A</color>
+    <color name="c_pink">#FF375F</color>
+    <color name="c_purple">#BF5AF2</color>
+    <color name="c_indigo">#5E5CE6</color>
+    <color name="c_mint">#66D4CF</color>
+    <color name="c_yellow">#FFD60A</color>
+    <color name="c_grey">#8E8E93</color>
+
     <color name="disc_bg">#241F17</color>
     <color name="disc_line">#3A3220</color>
 </resources>

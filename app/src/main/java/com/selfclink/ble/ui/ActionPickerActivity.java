@@ -6,6 +6,7 @@ import android.content.pm.ResolveInfo;
 import android.text.InputType;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -70,24 +71,104 @@ public final class ActionPickerActivity extends BackBarActivity {
             }
         }
 
-        // ---- 固定动作 ----
+        // ---- 固定动作（多列磁贴 + 分类色块）----
         Map<String, List<ActionDef>> grouped = ActionCatalog.grouped();
         for (Map.Entry<String, List<ActionDef>> e : grouped.entrySet()) {
             root.addView(header(e.getKey()));
+            androidx.gridlayout.widget.GridLayout grid = new androidx.gridlayout.widget.GridLayout(this);
+            grid.setColumnCount(2);
+            grid.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            int color = catColor(e.getKey());
             for (ActionDef def : e.getValue()) {
-                root.addView(makeRow(def));
+                grid.addView(makeTile(def, color), tileCell());
             }
+            root.addView(grid);
         }
     }
 
     private TextView header(String text) {
         TextView header = new TextView(this);
         header.setText(text);
-        header.setTextColor(getColor(R.color.accent));
-        header.setTextSize(17);
+        header.setTextColor(getColor(R.color.sub3));
+        header.setTextSize(13);
+        header.setAllCaps(true);
+        header.setLetterSpacing(0.02f);
         header.setTypeface(header.getTypeface(), android.graphics.Typeface.BOLD);
-        header.setPadding(0, dp(18), 0, dp(8));
+        header.setPadding(dp(4), dp(20), 0, dp(8));
         return header;
+    }
+
+    /** iOS 磁贴：分类色块 + 名称 + 选中勾。 */
+    private View makeTile(ActionDef def, int color) {
+        boolean on = selected.contains(def.key);
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(LinearLayout.HORIZONTAL);
+        tile.setGravity(Gravity.CENTER_VERTICAL);
+        tile.setBackgroundResource(on ? R.drawable.tile_sel : R.drawable.card_bg);
+        int p = dp(14);
+        tile.setPadding(p, p, p, p);
+
+        View sq = new View(this);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(36), dp(36));
+        sp.setMarginEnd(dp(12));
+        sq.setLayoutParams(sp);
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setCornerRadius(dp(10));
+        gd.setColor(color);
+        sq.setBackground(gd);
+        tile.addView(sq);
+
+        TextView name = new TextView(this);
+        name.setLayoutParams(new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        name.setText(def.name + (def.parkGuard ? "  · P 档" : ""));
+        name.setTextColor(getColor(R.color.txt));
+        name.setTextSize(18);
+        name.setMaxLines(1);
+        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        tile.addView(name);
+
+        TextView ck = new TextView(this);
+        ck.setText(on ? "✓" : "");
+        ck.setTextColor(getColor(R.color.accent));
+        ck.setTextSize(19);
+        ck.setTypeface(ck.getTypeface(), android.graphics.Typeface.BOLD);
+        tile.addView(ck);
+
+        tile.setOnClickListener(v -> {
+            if (on) {
+                selected.remove(def.key);
+            } else {
+                selected.add(def.key);
+            }
+            buildList();
+        });
+        return tile;
+    }
+
+    private androidx.gridlayout.widget.GridLayout.LayoutParams tileCell() {
+        androidx.gridlayout.widget.GridLayout.LayoutParams lp =
+                new androidx.gridlayout.widget.GridLayout.LayoutParams();
+        lp.width = 0;
+        lp.height = LinearLayout.LayoutParams.WRAP_CONTENT;
+        lp.columnSpec = androidx.gridlayout.widget.GridLayout.spec(
+                androidx.gridlayout.widget.GridLayout.UNDEFINED, 1, 1f);
+        int m = dp(5);
+        lp.setMargins(m, m, m, m);
+        return lp;
+    }
+
+    private int catColor(String cat) {
+        if (cat == null) return getColor(R.color.c_green);
+        if (cat.contains("门") || cat.contains("窗") || cat.contains("车身")) return getColor(R.color.c_orange);
+        if (cat.contains("空调")) return getColor(R.color.c_mint);
+        if (cat.contains("座")) return getColor(R.color.c_pink);
+        if (cat.contains("媒体") || cat.contains("音")) return getColor(R.color.c_purple);
+        if (cat.contains("影") || cat.contains("环视") || cat.contains("摄")) return getColor(R.color.c_indigo);
+        if (cat.contains("系统")) return getColor(R.color.c_grey);
+        if (cat.contains("自定义")) return getColor(R.color.c_indigo);
+        return getColor(R.color.c_green);
     }
 
     private TextView addButton(String text, android.view.View.OnClickListener l) {
@@ -124,39 +205,6 @@ public final class ActionPickerActivity extends BackBarActivity {
             buildList();
         });
         return row;
-    }
-
-    private TextView makeRow(ActionDef def) {
-        TextView row = new TextView(this);
-        row.setText(def.name);
-        row.setTextSize(18);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        int p = dp(18);
-        row.setPadding(p, dp(16), p, dp(16));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = dp(10);
-        row.setLayoutParams(lp);
-        applyState(row, def, selected.contains(def.key));
-        row.setOnClickListener(v -> {
-            boolean now = !selected.contains(def.key);
-            if (now) {
-                selected.add(def.key);
-            } else {
-                selected.remove(def.key);
-            }
-            applyState(row, def, now);
-        });
-        return row;
-    }
-
-    private void applyState(TextView row, ActionDef def, boolean on) {
-        row.setBackgroundResource(on ? R.drawable.btn_accent : R.drawable.chip_bg);
-        row.setTextColor(getColor(on ? R.color.accent_ink : R.color.txt));
-        String mark = on ? "✓ " : "";
-        String guard = def.parkGuard ? "  · P 档" : "";
-        row.setText(mark + def.name + guard);
-        row.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0);
     }
 
     /** 列出可启动应用，选中后加入 app_open: 键。 */

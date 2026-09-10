@@ -2,67 +2,193 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@color/bg"
-    android:padding="28dp">
+    android:orientation="horizontal"
+    android:background="@color/bg">
 
+    <!-- ==================== 左侧导航 ==================== -->
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:layout_width="330dp"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@color/panel"
+        android:paddingHorizontal="18dp"
+        android:paddingTop="30dp"
+        android:paddingBottom="22dp">
 
         <TextView
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/app_name"
+            android:paddingHorizontal="10dp"
+            android:paddingBottom="16dp"
+            android:text="蓝牙按键"
             android:textColor="@color/txt"
-            android:textSize="30sp"
-            android:textStyle="bold" />
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:letterSpacing="-0.02" />
 
         <TextView
-            android:id="@+id/account_pill"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/pill_bg"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="12dp"
-            android:text="米家 未登录"
-            android:textColor="@color/sub"
-            android:textSize="17sp" />
+            android:paddingHorizontal="12dp"
+            android:paddingBottom="8dp"
+            android:text="我的设备"
+            android:textColor="@color/sub3"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textAllCaps="true"
+            android:letterSpacing="0.02" />
 
-        <TextView
-            android:id="@+id/settings_pill"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:background="@drawable/pill_bg"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="12dp"
-            android:text="设置"
-            android:textColor="@color/sub"
-            android:textSize="17sp" />
-    </LinearLayout>
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="22dp"
-        android:layout_marginBottom="12dp"
-        android:text="我的按键设备"
-        android:textColor="@color/sub"
-        android:textSize="17sp" />
-
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent">
-
-        <androidx.gridlayout.widget.GridLayout
-            xmlns:app="http://schemas.android.com/apk/res-auto"
-            android:id="@+id/dev_grid"
+        <LinearLayout
+            android:id="@+id/device_group"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:columnCount="4" />
+            android:orientation="vertical"
+            android:background="@drawable/group_bg" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/group_bg">
+
+            <LinearLayout
+                android:id="@+id/account_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="?android:attr/selectableItemBackground"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="13dp">
+
+                <View android:layout_width="36dp" android:layout_height="36dp"
+                    android:background="@drawable/ic_tile_orange" />
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical"
+                    android:layout_marginStart="13dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="米家账号" android:textColor="@color/txt" android:textSize="17sp" android:textStyle="bold" />
+                    <TextView android:id="@+id/account_status" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="未登录" android:textColor="@color/sub" android:textSize="13sp" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="›" android:textColor="@color/sub3" android:textSize="20sp" />
+            </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                android:layout_marginStart="63dp" android:background="@color/line" />
+
+            <LinearLayout
+                android:id="@+id/settings_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="?android:attr/selectableItemBackground"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="13dp">
+
+                <View android:layout_width="36dp" android:layout_height="36dp"
+                    android:background="@drawable/ic_tile_grey" />
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:layout_marginStart="13dp"
+                    android:text="设置" android:textColor="@color/txt" android:textSize="17sp" android:textStyle="bold" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="›" android:textColor="@color/sub3" android:textSize="20sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- ==================== 右侧详情 ==================== -->
+    <ScrollView
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:background="@color/bg"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="40dp"
+            android:paddingTop="34dp"
+            android:paddingBottom="34dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="bottom">
+
+                <TextView
+                    android:id="@+id/detail_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="设备"
+                    android:textColor="@color/txt"
+                    android:textSize="38sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="-0.03" />
+
+                <TextView
+                    android:id="@+id/btn_learn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="6dp"
+                    android:text="学习动作"
+                    android:textColor="@color/accent"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/btn_rename"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="6dp"
+                    android:text="重命名"
+                    android:textColor="@color/accent"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/btn_delete"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="6dp"
+                    android:text="删除"
+                    android:textColor="@color/warn"
+                    android:textSize="18sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/detail_sub"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="24dp"
+                android:text=""
+                android:textColor="@color/sub"
+                android:textSize="17sp" />
+
+            <androidx.gridlayout.widget.GridLayout
+                xmlns:app="http://schemas.android.com/apk/res-auto"
+                android:id="@+id/gesture_grid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:columnCount="3" />
+        </LinearLayout>
     </ScrollView>
 </LinearLayout>

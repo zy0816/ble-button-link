@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="?android:attr/selectableItemBackground"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="11dp">
+
+    <FrameLayout
+        android:id="@+id/d_tile"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="@drawable/ic_tile_green">
+
+        <ImageView
+            android:id="@+id/d_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_knob"
+            app:tint="@android:color/white"
+            xmlns:app="http://schemas.android.com/apk/res-auto" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginStart="12dp">
+
+        <TextView
+            android:id="@+id/d_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="设备名"
+            android:textColor="@color/txt"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/d_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="未发现"
+            android:textColor="@color/sub"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/d_chev"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="›"
+        android:textColor="@color/sub3"
+        android:textSize="20sp" />
+</LinearLayout>

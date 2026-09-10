@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/card_bg"
+    android:padding="18dp">
+
+    <TextView
+        android:id="@+id/g_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="单击"
+        android:textColor="@color/txt"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:letterSpacing="-0.02"
+        android:layout_marginBottom="14dp" />
+
+    <LinearLayout
+        android:id="@+id/g_bind"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/group_bg"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="11dp">
+
+        <View
+            android:id="@+id/g_tile"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/ic_tile_grey" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="12dp">
+
+            <TextView
+                android:id="@+id/g_action"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="未绑定"
+                android:textColor="@color/txt"
+                android:textSize="19sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/g_cat"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/sub"
+                android:textSize="13sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/g_chev"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="›"
+            android:textColor="@color/sub3"
+            android:textSize="22sp" />
+    </LinearLayout>
+</LinearLayout>
