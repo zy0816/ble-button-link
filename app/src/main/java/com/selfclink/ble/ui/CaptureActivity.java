@@ -138,7 +138,7 @@ public final class CaptureActivity extends BackBarActivity {
 
         byte[] key = keys.get(frame.mac.toUpperCase());
         if (key != null) {
-            MiBeacon.Result r = MiBeacon.parse(fe95, key);
+            MiBeacon.Result r = MiBeacon.parse(fe95, key, frame.mac);
             if (r != null) {
                 byte[] val = r.value == null ? new byte[0] : r.value.clone();
                 line.append(String.format(Locale.US, "\n  → objId=0x%04X value=%s",
@@ -262,7 +262,15 @@ public final class CaptureActivity extends BackBarActivity {
         }
 
         String id = "e" + (System.currentTimeMillis() % 100000);
-        device.learned.add(new LearnedEvent(id, label, c.objId, mask, expected));
+        LearnedEvent event = new LearnedEvent(id, label, c.objId, mask, expected);
+        if ("eight_key".equals(device.uiLayout)) {
+            for (int slot = 0; slot < 8; slot++) {
+                boolean used = false;
+                for (LearnedEvent e : device.learned) if (e.slot == slot) { used = true; break; }
+                if (!used) { event.slot = slot; break; }
+            }
+        }
+        device.learned.add(event);
         new RuleStore(this).upsert(device);
         ButtonService.reload(this);
         toast("已导入：" + label + " → 回编排页即可绑定动作");

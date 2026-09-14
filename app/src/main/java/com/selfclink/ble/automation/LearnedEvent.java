@@ -19,6 +19,8 @@ public final class LearnedEvent {
     public int objId;         // MiBeacon 对象 id
     public byte[] mask;       // 覆盖 value 的掩码
     public byte[] expected;   // 覆盖 value 的期望值（掩码下比较）
+    /** 多键面板上的物理槽位；-1 表示普通手势、不固定位置。 */
+    public int slot = -1;
 
     public LearnedEvent() {
     }
@@ -74,6 +76,7 @@ public final class LearnedEvent {
         o.put("objId", objId);
         o.put("mask", HexUtil.toHex(mask));
         o.put("expected", HexUtil.toHex(expected));
+        if (slot >= 0) o.put("slot", slot);
         return o;
     }
 
@@ -84,6 +87,7 @@ public final class LearnedEvent {
         e.objId = o.getInt("objId");
         e.mask = HexUtil.fromHex(o.optString("mask", ""));
         e.expected = HexUtil.fromHex(o.optString("expected", ""));
+        e.slot = o.optInt("slot", -1);
         return e;
     }
 }

@@ -32,6 +32,8 @@ public final class VehicleController {
     private static final int ZONE_ALL = VehicleZone.ZONE_ALL;
     private static final int ZONE_DRV = VehicleZone.ZONE_ROW_1_LEFT;
     private static final int ZONE_PASS = VehicleZone.ZONE_ROW_1_RIGHT;
+    /** 原车 HVAC 前排整体区域；AUTO 和手动风量均明确使用此 zone。 */
+    private static final int ZONE_FRONT_ALL = 8;
     private static final int ZONE_REAR_ALL = 128;          // 0x80 后排整体
     private static final int ZONE_TRUNK = 536870912;       // 0x20000000 后备箱
     private static final int ZONE_WIN_FL = 16;
@@ -65,6 +67,8 @@ public final class VehicleController {
     private final java.util.HashMap<Integer, Boolean> doorOpen = new java.util.HashMap<>();
     private boolean rearScreenLocked;
     private boolean parkComfortOn;
+    private boolean frontDefrostOn;
+    private boolean rearDefrostOn;
 
     public VehicleController(Context context) {
         // 即使没有其它车态规则也要确保连接就绪，旋钮按下时才能写得进去。
@@ -80,13 +84,13 @@ public final class VehicleController {
         switch (key) {
             // ---- 空调开关类 ----
             case "car_ac": toggleOnOff(IHvac.HVAC_FUNC_AC); break;
-            case "car_auto": toggleOnOff(IHvac.HVAC_FUNC_AUTO); break;
+            case "car_auto": toggleZoned(IHvac.HVAC_FUNC_AUTO, ZONE_FRONT_ALL); break;
             case "car_power": toggleOnOff(IHvac.HVAC_FUNC_POWER); break;
             case "car_eco": toggleOnOff(IHvac.HVAC_FUNC_ECO_SWITCH); break;
             case "car_sync": toggleOnOff(IHvac.HVAC_FUNC_TEMP_DUAL); break;
-            case "car_front_defrost": toggleOnOff(IHvac.HVAC_FUNC_DEFROST_FRONT); break;
-            case "car_rear_defrost": toggleOnOff(IHvac.HVAC_FUNC_DEFROST_REAR); break;
-            case "car_fragrance": toggleOnOff(IHvac.HVAC_FUNC_AIR_FRAGRANCE); break;
+            case "car_front_defrost": toggleFrontDefrost(); break;
+            case "car_rear_defrost": toggleRearDefrost(); break;
+            case "car_fragrance": toggleFragrance(); break;
             case "car_rear_power": toggleZoned(IHvac.HVAC_FUNC_POWER, ZONE_REAR_ALL); break;
 
             // ---- 空调循环/增减类 ----
@@ -170,10 +174,38 @@ public final class VehicleController {
     }
 
     private void stepFan(int delta) {
-        int ui = sdkFanToUi(car.readFunction(IHvac.HVAC_FUNC_FAN_SPEED, ZONE_ALL));
+        int ui = sdkFanToUi(car.readFunction(IHvac.HVAC_FUNC_FAN_SPEED, ZONE_FRONT_ALL));
         ui = clamp(ui + delta, 0, 9);
         int sdk = ui <= 0 ? IHvac.FAN_SPEED_OFF : IHvac.FAN_SPEED_LEVEL_1 + (ui - 1);
-        car.setFunction(IHvac.HVAC_FUNC_FAN_SPEED, ZONE_ALL, sdk);
+        car.setFunction(IHvac.HVAC_FUNC_FAN_SPEED, ZONE_FRONT_ALL, sdk);
+    }
+
+    /** 原车前挡快捷键对应最大除霜，而不是普通出风模式。 */
+    private void toggleFrontDefrost() {
+        int cur = car.readFunction(IHvac.HVAC_FUNC_DEFROST_FRONT_MAX, ZONE_ALL);
+        boolean next = cur == ON ? false : (cur == OFF ? true : !frontDefrostOn);
+        if (car.setFunction(IHvac.HVAC_FUNC_DEFROST_FRONT_MAX, ZONE_ALL, next ? ON : OFF)) {
+            frontDefrostOn = next;
+        }
+    }
+
+    /** 后挡加热/除霜；读不到有效状态时用本次进程中的最后指令态兜底。 */
+    private void toggleRearDefrost() {
+        int cur = car.readFunction(IHvac.HVAC_FUNC_DEFROST_REAR, ZONE_ALL);
+        boolean next = cur == ON ? false : (cur == OFF ? true : !rearDefrostOn);
+        if (car.setFunction(IHvac.HVAC_FUNC_DEFROST_REAR, ZONE_ALL, next ? ON : OFF)) {
+            rearDefrostOn = next;
+        }
+    }
+
+    /** 原车香氛开关实际控制香氛等级：关→1档，任意开启档→关。 */
+    private void toggleFragrance() {
+        int cur = car.readFunction(IHvac.HVAC_FUNC_AIR_FRAGRANCE_LEVEL, ZONE_ALL);
+        int next = cur == IHvac.AIR_FRAGRANCE_LEVEL_1
+                || cur == IHvac.AIR_FRAGRANCE_LEVEL_2
+                || cur == IHvac.AIR_FRAGRANCE_LEVEL_3
+                ? IHvac.AIR_FRAGRANCE_LEVEL_OFF : IHvac.AIR_FRAGRANCE_LEVEL_1;
+        car.setFunction(IHvac.HVAC_FUNC_AIR_FRAGRANCE_LEVEL, ZONE_ALL, next);
     }
 
     private void stepTemp(int zone, float delta) {

@@ -346,7 +346,7 @@ public final class LearnActivity extends BackBarActivity {
         if (fe95 == null) {
             return;
         }
-        MiBeacon.Result r = MiBeacon.parse(fe95, bindKey);
+        MiBeacon.Result r = MiBeacon.parse(fe95, bindKey, frame.mac);
         if (r == null) {
             return;
         }
@@ -461,11 +461,23 @@ public final class LearnActivity extends BackBarActivity {
 
     private void saveEvent(String label, int objId, byte[] mask, byte[] expected) {
         String id = "e" + (System.currentTimeMillis() % 100000);
-        device.learned.add(new LearnedEvent(id, label, objId, mask, expected));
+        LearnedEvent event = new LearnedEvent(id, label, objId, mask, expected);
+        event.slot = nextFreeSlot(device);
+        device.learned.add(event);
         ruleStore.upsert(device);
         ButtonService.reload(this);
         toast("已学：" + label);
         renderList();
+    }
+
+    private int nextFreeSlot(BoundDevice d) {
+        if (!"eight_key".equals(d.uiLayout)) return -1;
+        for (int slot = 0; slot < 8; slot++) {
+            boolean used = false;
+            for (LearnedEvent e : d.learned) if (e.slot == slot) { used = true; break; }
+            if (!used) return slot;
+        }
+        return -1;
     }
 
     // ---------------- 列表 ----------------

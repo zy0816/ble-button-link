@@ -69,19 +69,42 @@ public final class MiBeacon {
      * @param bindKey 16 字节 BindKey
      */
     public static Result parse(byte[] raw, byte[] bindKey) {
+        return parse(raw, bindKey, null);
+    }
+
+    /**
+     * 解析 MiBeacon 事件帧。部分新设备的加密事件帧不再内嵌 MAC（FC_MAC=0），
+     * 但 CCM nonce 仍需 MAC；此时使用蓝牙扫描结果中的广播地址。旧设备若帧内携带
+     * MAC，始终优先使用帧内值。
+     *
+     * @param advertiserMac Android 显示的广播地址，可为无分隔 12 hex
+     *                      或带冒号形式；构造 nonce 时转为 GAP 内部字节序
+     */
+    public static Result parse(byte[] raw, byte[] bindKey, String advertiserMac) {
         if (raw == null || raw.length < 11 || bindKey == null || bindKey.length != 16) {
             return null;
         }
         int fc = (raw[0] & 0xFF) | ((raw[1] & 0xFF) << 8);
-        if ((fc & FC_OBJECT) == 0 || (fc & FC_ENCRYPTED) == 0 || (fc & FC_MAC) == 0) {
-            return null; // 待机帧 / 明文帧 / 无 MAC，非加密按键事件
+        if ((fc & FC_OBJECT) == 0 || (fc & FC_ENCRYPTED) == 0) {
+            return null; // 待机帧 / 明文帧，非加密按键事件
         }
         int pid = (raw[2] & 0xFF) | ((raw[3] & 0xFF) << 8);
         int fcnt = raw[4] & 0xFF;
         int idx = 5;
-        byte[] mac = new byte[6];
-        System.arraycopy(raw, idx, mac, 0, 6);
-        idx += 6;
+        byte[] mac;
+        if ((fc & FC_MAC) != 0) {
+            if (raw.length < idx + 6) {
+                return null;
+            }
+            mac = new byte[6];
+            System.arraycopy(raw, idx, mac, 0, 6);
+            idx += 6;
+        } else {
+            mac = parseMac(advertiserMac);
+            if (mac == null) {
+                return null;
+            }
+        }
         if ((fc & FC_CAP) != 0) {
             if (idx >= raw.length) {
                 return null;
@@ -133,6 +156,30 @@ public final class MiBeacon {
             System.arraycopy(plain, 3, value, 0, vlen);
         }
         return new Result(objId, pid, fcnt, value);
+    }
+
+    private static byte[] parseMac(String value) {
+        if (value == null) {
+            return null;
+        }
+        String hex = value.replace(":", "").replace("-", "").trim();
+        if (hex.length() != 12) {
+            return null;
+        }
+        byte[] out = new byte[6];
+        try {
+            // Android 把 BLE 地址按人类阅读的 MSB-first 显示；MiBeacon nonce
+            // 使用 mible_gap_address_get() 的 GAP 内部 LSB-first 字节序。
+            // 实机亦由待机帧证实：D67B4E9F907B → 7B909F4E7BD6。
+            for (int i = 0; i < out.length; i++) {
+                int source = out.length - 1 - i;
+                out[i] = (byte) Integer.parseInt(
+                        hex.substring(source * 2, source * 2 + 2), 16);
+            }
+            return out;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /**

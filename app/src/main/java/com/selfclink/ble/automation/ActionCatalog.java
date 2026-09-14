@@ -63,8 +63,8 @@ public final class ActionCatalog {
         add("car_door_fr", CAT_BODY, "右前门", true);
         add("car_door_rl", CAT_BODY, "左后门", true);
         add("car_door_rr", CAT_BODY, "右后门", true);
-        add("car_charge_port_l", CAT_BODY, "左充电口盖", false);
-        add("car_charge_port_r", CAT_BODY, "右充电口盖", false);
+        add("car_charge_port_l", CAT_BODY, "慢充口盖", false);
+        add("car_charge_port_r", CAT_BODY, "快充口盖", false);
         add("car_manual_door_front", CAT_BODY, "前排手动门模式", false);
         add("car_manual_door_rear", CAT_BODY, "后排手动门模式", false);
 

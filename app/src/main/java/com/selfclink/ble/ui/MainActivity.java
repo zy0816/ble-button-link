@@ -11,6 +11,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -63,6 +64,7 @@ public final class MainActivity extends AppCompatActivity {
     private String selectedMac;
     private BoundDevice selected;
     private String editingGestureId;
+    private boolean eightButtonEditing;
 
     /** 动作 key → 分类颜色（图标块用）。 */
     private final Map<String, Integer> keyColor = new HashMap<>();
@@ -105,8 +107,8 @@ public final class MainActivity extends AppCompatActivity {
         findViewById(R.id.settings_row).setOnClickListener(v ->
                 startActivity(new Intent(this, SettingsActivity.class)));
         findViewById(R.id.btn_learn).setOnClickListener(v -> openLearn());
-        findViewById(R.id.btn_rename).setOnClickListener(v -> renameDevice());
-        findViewById(R.id.btn_delete).setOnClickListener(v -> deleteDevice());
+        findViewById(R.id.btn_rename).setOnClickListener(v -> onMiddleAction());
+        findViewById(R.id.btn_delete).setOnClickListener(this::onDeviceMenu);
 
         ensurePermissions();
     }
@@ -205,10 +207,17 @@ public final class MainActivity extends AppCompatActivity {
         }
         setBarButtons(true);
         detailTitle.setText(selected.name);
+        boolean eightButton = isEightButton(selected);
+        gestureGrid.setColumnCount(eightButton ? 4 : 3);
+        ((TextView) findViewById(R.id.btn_learn)).setText(eightButton ? "重新学习" : "学习动作");
+        ((TextView) findViewById(R.id.btn_rename)).setText(
+                eightButton ? (eightButtonEditing ? "完成" : "编辑") : "重命名");
+        ((TextView) findViewById(R.id.btn_delete)).setText(eightButton ? "•••" : "删除");
 
         boolean online = Sightings.isOnline(selected.mac);
         int batt = Sightings.battery(selected.mac);
         List<Gesture> gestures = gesturesOf(selected);
+        migrateEightButtonLayout(selected);
         int bound = 0;
         for (Gesture g : gestures) {
             if (!selected.actionsFor(g.id).isEmpty()) {
@@ -225,6 +234,15 @@ public final class MainActivity extends AppCompatActivity {
 
         LayoutInflater inf = LayoutInflater.from(this);
         int cols = gestureGrid.getColumnCount();
+        if (eightButton) {
+            for (int slot = 0; slot < 8; slot++) {
+                LearnedEvent event = learnedAtSlot(selected, slot);
+                View card = inf.inflate(R.layout.item_eight_button_card, gestureGrid, false);
+                bindEightButtonCard(card, event == null ? null : new Gesture(event.id, event.label), slot);
+                gestureGrid.addView(card, cell(cols));
+            }
+            return;
+        }
         if (gestures.isEmpty()) {
             TextView t = new TextView(this);
             t.setText("该设备暂无可绑定手势，点右上「学习动作」教一个。");
@@ -233,11 +251,45 @@ public final class MainActivity extends AppCompatActivity {
             gestureGrid.addView(t);
             return;
         }
-        for (Gesture g : gestures) {
+        for (int i = 0; i < gestures.size(); i++) {
+            Gesture g = gestures.get(i);
             View card = inf.inflate(R.layout.item_gesture_card, gestureGrid, false);
             bindGestureCard(card, g);
             gestureGrid.addView(card, cell(cols));
         }
+    }
+
+    private void bindEightButtonCard(View card, Gesture g, int index) {
+        TextView position = card.findViewById(R.id.g_position);
+        TextView action = card.findViewById(R.id.g_action);
+        TextView learnedName = card.findViewById(R.id.g_name);
+        TextView delete = card.findViewById(R.id.g_delete);
+        View tile = card.findViewById(R.id.g_tile);
+
+        String[] positions = {"左上 · K1", "上排中左 · K2", "上排中右 · K3", "右上 · K4",
+                "左下 · K5", "下排中左 · K6", "下排中右 · K7", "右下 · K8"};
+        position.setText(positions[Math.min(index, positions.length - 1)]);
+        learnedName.setText(g == null ? "尚未学习" : g.name);
+        List<String> keys = g == null ? new ArrayList<>() : selected.actionsFor(g.id);
+        if (keys.isEmpty()) {
+            action.setText(g == null ? "＋ 学习此键" : "＋ 绑定动作");
+            action.setTextColor(getColor(R.color.accent));
+            tint(tile, getColor(R.color.c_grey), 15);
+        } else {
+            action.setText(describe(keys));
+            action.setTextColor(getColor(R.color.txt));
+            tint(tile, colorForKeys(keys), 15);
+        }
+        delete.setVisibility(eightButtonEditing && g != null ? View.VISIBLE : View.GONE);
+        delete.setOnClickListener(v -> { if (g != null) confirmDeleteLearned(g); });
+        card.setOnClickListener(v -> {
+            if (eightButtonEditing) return;
+            if (g == null) openLearn(); else openPicker(g);
+        });
+        card.setOnLongClickListener(v -> {
+            if (!eightButtonEditing && g != null) testGesture(g);
+            return true;
+        });
     }
 
     private void bindGestureCard(View card, Gesture g) {
@@ -350,6 +402,75 @@ public final class MainActivity extends AppCompatActivity {
                 })
                 .setNegativeButton("取消", null)
                 .show();
+    }
+
+    private boolean isEightButton(BoundDevice d) {
+        if (d == null) return false;
+        if ("eight_key".equals(d.uiLayout)) return true;
+        String n = d.name == null ? "" : d.name.toLowerCase();
+        // 八键设备可能刚接入、尚未学习任何事件，不能以 learned.size()==8 作为显示前提。
+        if (n.contains("八键") || n.contains("8键") || n.contains("8-button")) return true;
+        return GENERIC_CARRIER_ID.equals(d.productId) && d.learned.size() == 8;
+    }
+
+    private void migrateEightButtonLayout(BoundDevice d) {
+        if (!isEightButton(d) || "eight_key".equals(d.uiLayout)) return;
+        d.uiLayout = "eight_key";
+        for (int i = 0; i < d.learned.size() && i < 8; i++) d.learned.get(i).slot = i;
+        ruleStore.upsert(d);
+    }
+
+    private LearnedEvent learnedAtSlot(BoundDevice d, int slot) {
+        for (LearnedEvent e : d.learned) if (e.slot == slot) return e;
+        return null;
+    }
+
+    private void onMiddleAction() {
+        if (selected == null) return;
+        if (!isEightButton(selected)) {
+            renameDevice();
+            return;
+        }
+        eightButtonEditing = !eightButtonEditing;
+        renderDetail();
+    }
+
+    private void onDeviceMenu(View anchor) {
+        if (selected == null) return;
+        if (!isEightButton(selected)) {
+            deleteDevice();
+            return;
+        }
+        PopupMenu menu = new PopupMenu(this, anchor);
+        menu.getMenu().add("重命名设备");
+        menu.getMenu().add("删除整个设备");
+        menu.setOnMenuItemClickListener(item -> {
+            if ("重命名设备".contentEquals(item.getTitle())) renameDevice();
+            else deleteDevice();
+            return true;
+        });
+        menu.show();
+    }
+
+    private void confirmDeleteLearned(Gesture g) {
+        new AlertDialog.Builder(this)
+                .setTitle("删除“" + g.name + "”？")
+                .setMessage("只删除这个按键的学习编码和动作绑定，其他 7 个按键不受影响。")
+                .setPositiveButton("删除", (dialog, which) -> deleteLearned(g.id))
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void deleteLearned(String gestureId) {
+        if (selected == null) return;
+        for (int i = selected.learned.size() - 1; i >= 0; i--) {
+            if (gestureId.equals(selected.learned.get(i).id)) selected.learned.remove(i);
+        }
+        selected.gestureActions.remove(gestureId);
+        eightButtonEditing = false;
+        ruleStore.upsert(selected);
+        ButtonService.reload(this);
+        renderDetail();
     }
 
     private void deleteDevice() {

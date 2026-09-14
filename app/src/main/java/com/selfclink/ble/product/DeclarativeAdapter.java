@@ -86,7 +86,7 @@ public final class DeclarativeAdapter implements ProductAdapter {
         if (sd == null || bindKey == null) {
             return null;
         }
-        MiBeacon.Result r = MiBeacon.parse(sd, bindKey);
+        MiBeacon.Result r = MiBeacon.parse(sd, bindKey, f.mac);
         if (r == null) {
             return null;
         }

@@ -10,6 +10,7 @@ import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.os.ParcelUuid;
+import android.os.SystemClock;
 import android.util.SparseArray;
 
 import com.selfclink.ble.product.ScanFrame;
@@ -42,6 +43,9 @@ public final class BleScanner {
     private final FrameListener listener;
     private BluetoothLeScanner scanner;
     private boolean scanning;
+    /** 用系统单调时钟记录真实扫描回调，不受车机校时影响。 */
+    private volatile long scanStartedAt;
+    private volatile long lastResultAt;
 
     public BleScanner(Context context, FrameListener listener) {
         this.context = context.getApplicationContext();
@@ -68,6 +72,8 @@ public final class BleScanner {
         try {
             scanner.startScan(null, settings, scanCallback);
             scanning = true;
+            scanStartedAt = SystemClock.elapsedRealtime();
+            lastResultAt = 0L;
             AppLog.d(TAG, "开始扫描 BLE（低延迟）");
         } catch (Exception e) {
             AppLog.w(TAG, "startScan 失败: " + e.getMessage());
@@ -104,9 +110,30 @@ public final class BleScanner {
         return scanning;
     }
 
+    /**
+     * 只在扫描确实失去回调时才需要复位。以前每 10 秒强制 stop/start
+     * 会人为制造广播接收空窗，也会频繁扰动系统蓝牙栈。
+     */
+    public boolean needsRecovery(long staleMs) {
+        if (!scanning) {
+            return true;
+        }
+        long now = SystemClock.elapsedRealtime();
+        long anchor = lastResultAt > 0L ? lastResultAt : scanStartedAt;
+        return anchor > 0L && now - anchor >= staleMs;
+    }
+
+    /** 返回距离上次收到任意 BLE 广播的毫秒数；尚未收到时从启动扫描起算。 */
+    public long silenceMs() {
+        long now = SystemClock.elapsedRealtime();
+        long anchor = lastResultAt > 0L ? lastResultAt : scanStartedAt;
+        return anchor > 0L ? Math.max(0L, now - anchor) : Long.MAX_VALUE;
+    }
+
     private final ScanCallback scanCallback = new ScanCallback() {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
+            lastResultAt = SystemClock.elapsedRealtime();
             ScanFrame frame = toFrame(result);
             if (frame != null) {
                 listener.onFrame(frame);

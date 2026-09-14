@@ -21,6 +21,8 @@ public final class BoundDevice {
     public String productId;
     public String name;
     public String bindKeyHex; // nullable
+    /** 可选 UI 形态，例如 eight_key；用于删除单键后仍保留物理位置。 */
+    public String uiLayout;
     /** gestureId → 动作键列表（有序）。 */
     public final Map<String, List<String>> gestureActions = new LinkedHashMap<>();
     /** 自学习事件（非空时，运行时与编排页以此为准，覆盖 Profile 的手势/objId 映射）。 */
@@ -53,6 +55,7 @@ public final class BoundDevice {
         if (bindKeyHex != null) {
             o.put("bindKeyHex", bindKeyHex);
         }
+        if (uiLayout != null) o.put("uiLayout", uiLayout);
         JSONObject ga = new JSONObject();
         for (Map.Entry<String, List<String>> e : gestureActions.entrySet()) {
             ga.put(e.getKey(), new JSONArray(e.getValue()));
@@ -74,6 +77,7 @@ public final class BoundDevice {
         d.productId = o.getString("productId");
         d.name = o.optString("name", d.mac);
         d.bindKeyHex = o.has("bindKeyHex") ? o.getString("bindKeyHex") : null;
+        d.uiLayout = o.optString("uiLayout", null);
         JSONObject ga = o.optJSONObject("gestureActions");
         if (ga != null) {
             for (java.util.Iterator<String> it = ga.keys(); it.hasNext(); ) {

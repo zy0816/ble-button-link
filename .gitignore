@@ -3,6 +3,7 @@
 build/
 app/build/
 */build/
+dist/
 
 # 本机配置（各人 SDK 路径不同）
 local.properties

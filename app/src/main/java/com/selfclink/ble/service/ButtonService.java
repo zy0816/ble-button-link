@@ -44,6 +44,8 @@ public final class ButtonService extends Service {
     private static final String CHANNEL_ID = "ble_button";
     private static final int NOTIF_ID = 1001;
     private static final long WATCHDOG_MS = 10_000;
+    /** 连续 30 秒收不到任何 BLE 回调才认定扫描句柄失活。 */
+    private static final long SCAN_STALE_MS = 30_000;
     /** 无帧计数设备（advmatch）的时间去重窗口。 */
     private static final long TIME_DEDUP_MS = 700;
 
@@ -165,7 +167,8 @@ public final class ButtonService extends Service {
             if (device.bindKeyHex != null) {
                 try {
                     com.selfclink.ble.protocol.MiBeacon.Result r =
-                            com.selfclink.ble.protocol.MiBeacon.parse(fe95, HexUtil.fromHex(device.bindKeyHex));
+                            com.selfclink.ble.protocol.MiBeacon.parse(
+                                    fe95, HexUtil.fromHex(device.bindKeyHex), frame.mac);
                     if (r != null) {
                         sb.append(String.format(java.util.Locale.US, "\n  → objId=0x%04X value=%s",
                                 r.objId, r.value == null ? "(无)" : HexUtil.toHex(r.value)));
@@ -186,7 +189,7 @@ public final class ButtonService extends Service {
             return null;
         }
         com.selfclink.ble.protocol.MiBeacon.Result r =
-                com.selfclink.ble.protocol.MiBeacon.parse(fe95, bindKey);
+                com.selfclink.ble.protocol.MiBeacon.parse(fe95, bindKey, f.mac);
         if (r == null) {
             return null;
         }
@@ -205,7 +208,7 @@ public final class ButtonService extends Service {
             return;
         }
         com.selfclink.ble.protocol.MiBeacon.Result r =
-                com.selfclink.ble.protocol.MiBeacon.parse(fe95, bindKey);
+                com.selfclink.ble.protocol.MiBeacon.parse(fe95, bindKey, frame.mac);
         if (r != null && r.objId == 0x4803 && r.value != null && r.value.length >= 1) {
             com.selfclink.ble.ble.Sightings.recordBattery(frame.mac, r.value[0] & 0xFF);
         }
@@ -247,7 +250,16 @@ public final class ButtonService extends Service {
     private final Runnable watchdog = new Runnable() {
         @Override
         public void run() {
-            scanner.restartScan();
+            if (scanner.needsRecovery(SCAN_STALE_MS)) {
+                long silence = scanner.silenceMs();
+                AppLog.w(TAG, "BLE 扫描无回调 "
+                        + (silence == Long.MAX_VALUE ? "(未启动)" : (silence / 1000L + " 秒"))
+                        + "，执行自愈复位");
+                if (AppLog.isDiagEnabled()) {
+                    AppLog.diag(TAG, "  ⚠ 扫描健康检查失败，正在重启 BLE 扫描");
+                }
+                scanner.restartScan();
+            }
             main.postDelayed(this, WATCHDOG_MS);
         }
     };
