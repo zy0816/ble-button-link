@@ -10,8 +10,8 @@ android {
         applicationId "com.selfclink.ble"
         minSdk 24
         targetSdk 33
-        versionCode 37
-        versionName "3.33"
+        versionCode 47
+        versionName "3.43"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -57,5 +57,6 @@ dependencies {
     compileOnly files('libs/ecarx-adaptapi.jar')
 
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
     testImplementation 'org.mockito:mockito-core:4.11.0'
 }

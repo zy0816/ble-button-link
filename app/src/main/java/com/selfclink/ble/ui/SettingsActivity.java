@@ -40,6 +40,8 @@ public final class SettingsActivity extends BackBarActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
+        findViewById(R.id.row_execution_rules).setOnClickListener(v ->
+                startActivity(new Intent(this, ExecutionRulesActivity.class)));
 
         findViewById(R.id.row_community).setOnClickListener(v ->
                 startActivity(new Intent(this, CommunityActivity.class)));

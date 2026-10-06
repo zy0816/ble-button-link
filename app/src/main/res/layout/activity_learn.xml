@@ -30,7 +30,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="点「学习新动作」后，对同一个动作连续操作 3 次（如：向左转 3 下）。学完给它命名，再回上一页绑定要执行的车控/应用等。"
+        android:text="点「学习新动作」后，对同一个动作连续操作 3 次。支持米家加密事件，也会自动识别普通 Service / Manufacturer 广播并忽略滚动计数。"
         android:textColor="@color/sub"
         android:textSize="15sp" />
 

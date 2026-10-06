@@ -60,6 +60,7 @@ public final class ButtonService extends Service {
     private final Handler main = new Handler(Looper.getMainLooper());
     /** mac(大写) → 已接入设备。 */
     private volatile Map<String, BoundDevice> bindings = new HashMap<>();
+    private boolean storageReadySeen;
     private final Map<String, Integer> lastCounter = new HashMap<>();
     private final Map<String, Long> lastTime = new HashMap<>();
 
@@ -87,6 +88,8 @@ public final class ButtonService extends Service {
     }
 
     private void reloadBindings() {
+        if (!RuleStore.isReady()) return; // 不以初始化失败的空结果覆盖已接入设备。
+        storageReadySeen = true;
         Map<String, BoundDevice> map = new HashMap<>();
         for (BoundDevice d : ruleStore.load()) {
             if (d.mac != null) {
@@ -113,8 +116,10 @@ public final class ButtonService extends Service {
             }
             return;
         }
+        // 通用原始广播学习不依赖产品 codec/BindKey，先尝试已学的原始签名。
+        DecodedGesture g = device.hasLearned() ? matchLearnedRaw(device, frame) : null;
         byte[] cred = null;
-        if (adapter.credentialSpec() == ProductAdapter.CredentialSpec.BINDKEY16) {
+        if (g == null && adapter.credentialSpec() == ProductAdapter.CredentialSpec.BINDKEY16) {
             if (device.bindKeyHex == null) {
                 if (diag) {
                     AppLog.diag(TAG, "  ✗ 未配置 BindKey");
@@ -125,8 +130,7 @@ public final class ButtonService extends Service {
             recordBattery(frame, cred);
         }
         // 自学习事件优先命中；未命中再回落到 Profile 内置手势解析，两者并存。
-        DecodedGesture g = null;
-        if (device.hasLearned()) {
+        if (g == null && device.hasLearned()) {
             g = matchLearned(device, frame, cred);
         }
         if (g == null) {
@@ -147,20 +151,61 @@ public final class ButtonService extends Service {
         List<String> actions = device.actionsFor(g.gestureId);
         if (!actions.isEmpty()) {
             AppLog.d(TAG, "设备 " + device.name + " 手势 " + g.gestureId + " → " + actions);
+            int submitted = executor.executeAll(actions, device.mac);
             if (diag) {
-                AppLog.diag(TAG, "  ✓ 命中「" + g.gestureId + "」→ 执行 " + actions);
+                AppLog.diag(TAG, "  命中「" + g.gestureId + "」→ 通过条件并提交 "
+                        + submitted + "/" + actions.size() + " 个动作（不代表车辆已执行）");
             }
-            executor.executeAll(actions);
-            feedback(device.name + " · " + g.gestureId);
+            feedback(submitted == 0 ? device.name + " · 动作未执行，请查看诊断"
+                    : device.name + " · " + g.gestureId);
         } else if (diag) {
             AppLog.diag(TAG, "  △ 命中「" + g.gestureId + "」但未绑定动作");
         }
+    }
+
+    private DecodedGesture matchLearnedRaw(BoundDevice d, ScanFrame f) {
+        for (com.selfclink.ble.automation.LearnedEvent e : d.learned) {
+            if (e.source == null || e.source.isEmpty() || "mibeacon".equals(e.source)) continue;
+            byte[] data = rawSource(f, e.source);
+            if (data != null && e.matchesRaw(e.source, data)) {
+                com.selfclink.ble.protocol.GiotKeyPacket key =
+                        com.selfclink.ble.protocol.GiotKeyPacket.parse(f);
+                return new DecodedGesture(e.id,
+                        com.selfclink.ble.protocol.GiotKeyPacket.SOURCE.equals(e.source) && key != null
+                                ? key.sequence : DecodedGesture.NO_DEDUP);
+            }
+        }
+        return null;
+    }
+
+    private byte[] rawSource(ScanFrame f, String source) {
+        try {
+            if (com.selfclink.ble.protocol.GiotKeyPacket.SOURCE.equals(source)) {
+                com.selfclink.ble.protocol.GiotKeyPacket key =
+                        com.selfclink.ble.protocol.GiotKeyPacket.parse(f);
+                return key == null ? null : key.signature();
+            }
+            if (source.startsWith("service:")) return f.serviceData(source.substring(8));
+            if (source.startsWith("manufacturer:")) {
+                String s = source.substring(13);
+                int id = s.startsWith("0x") ? Integer.parseInt(s.substring(2), 16) : Integer.parseInt(s);
+                return f.manufacturerData(id);
+            }
+            // 整条 ScanRecord 不是稳定按键码；旧版 record 规则由 RuleStore 迁移清理。
+            if ("record".equals(source)) return null;
+            if (source.startsWith("ad:")) return f.advertisingData(Integer.parseInt(source.substring(3)));
+        } catch (Exception ignored) { }
+        return null;
     }
 
     /** 诊断模式：打印一帧的来源与解密结果（objId·value），供「按键诊断」页展示裁决前提。 */
     private void diagFrame(ScanFrame frame, BoundDevice device) {
         StringBuilder sb = new StringBuilder();
         sb.append(device.name).append("  rssi=").append(frame.rssi);
+        com.selfclink.ble.protocol.GiotKeyPacket key =
+                com.selfclink.ble.protocol.GiotKeyPacket.parse(frame);
+        if (key != null) sb.append("\n  → AD 0x07 按键 K").append(key.key)
+                .append(" 计数=").append(key.sequence);
         byte[] fe95 = frame.serviceData("fe95");
         if (fe95 != null) {
             sb.append("\n  fe95=").append(HexUtil.toHex(fe95));
@@ -250,6 +295,7 @@ public final class ButtonService extends Service {
     private final Runnable watchdog = new Runnable() {
         @Override
         public void run() {
+            if (!storageReadySeen && RuleStore.isReady()) reloadBindings();
             if (scanner.needsRecovery(SCAN_STALE_MS)) {
                 long silence = scanner.silenceMs();
                 AppLog.w(TAG, "BLE 扫描无回调 "

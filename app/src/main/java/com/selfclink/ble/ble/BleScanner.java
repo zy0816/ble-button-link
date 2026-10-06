@@ -159,6 +159,7 @@ public final class BleScanner {
 
         Map<String, byte[]> serviceData = new HashMap<>();
         Map<Integer, byte[]> manufacturerData = new HashMap<>();
+        Map<Integer, byte[]> advertisingData = new HashMap<>();
         if (rec != null) {
             Map<ParcelUuid, byte[]> sd = rec.getServiceData();
             if (sd != null) {
@@ -175,8 +176,11 @@ public final class BleScanner {
                     manufacturerData.put(msd.keyAt(i), msd.valueAt(i));
                 }
             }
+            parseAdvertisingData(rec.getBytes(), advertisingData);
         }
-        return new ScanFrame(name, mac, result.getRssi(), serviceData, manufacturerData);
+        byte[] rawRecord = rec == null ? null : rec.getBytes();
+        return new ScanFrame(name, mac, result.getRssi(), serviceData, manufacturerData,
+                rawRecord, advertisingData);
     }
 
     /** ParcelUuid → 小写短形（标准蓝牙 16-bit 返回 4 hex，否则返回完整 36 字符）。 */
@@ -190,5 +194,24 @@ public final class BleScanner {
 
     private static String normMac(String mac) {
         return mac == null ? "" : mac.replace(":", "").toUpperCase();
+    }
+
+    /**
+     * 解析 ScanRecord 的 [len][type][payload...] AD Structure。自行解析而不调用
+     * 新版 Android 才提供的 getAdvertisingDataMap()，保持车机旧系统兼容。
+     */
+    private static void parseAdvertisingData(byte[] raw, Map<Integer, byte[]> out) {
+        if (raw == null) return;
+        int i = 0;
+        while (i < raw.length) {
+            int len = raw[i++] & 0xFF;
+            if (len == 0 || i + len > raw.length) break;
+            int type = raw[i++] & 0xFF;
+            int dataLen = len - 1;
+            byte[] data = new byte[dataLen];
+            if (dataLen > 0) System.arraycopy(raw, i, data, 0, dataLen);
+            out.put(type, data);
+            i += dataLen;
+        }
     }
 }

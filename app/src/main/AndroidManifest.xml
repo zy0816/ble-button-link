@@ -53,6 +53,7 @@
         <activity
             android:name=".ui.SettingsActivity"
             android:exported="false" />
+        <activity android:name=".ui.ExecutionRulesActivity" android:exported="false" />
         <activity
             android:name=".ui.CommunityActivity"
             android:exported="false" />

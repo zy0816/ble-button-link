@@ -29,18 +29,40 @@ public final class ActionExecutor {
     }
 
     /** 顺序执行一组动作。 */
-    public void executeAll(List<String> keys) {
+    public int executeAll(List<String> keys) {
+        return executeAll(keys, null);
+    }
+
+    public int executeAll(List<String> keys, String deviceMac) {
         if (keys == null) {
-            return;
+            return 0;
         }
+        int submitted = 0;
         for (String key : keys) {
-            execute(key);
+            if (execute(key, deviceMac)) submitted++;
         }
+        return submitted;
     }
 
     public void execute(String key) {
+        execute(key, null);
+    }
+
+    private boolean execute(String key, String deviceMac) {
         if (key == null) {
-            return;
+            return false;
+        }
+        try {
+            ConditionEngine.Decision decision = ConditionEngine.check(
+                    new ExecutionRuleStore(context).load(), deviceMac, key,
+                    new com.selfclink.ble.vehicle.ConditionStates(context));
+            if (!decision.allowed) {
+                AppLog.d(TAG, "条件拦截 " + ActionCatalog.nameOf(key) + "：" + decision.reason);
+                return false;
+            }
+        } catch (RuntimeException e) {
+            AppLog.d(TAG, "条件检查失败，暂不执行动作");
+            return false;
         }
         if (key.startsWith(VehicleController.PREFIX)) {
             vehicle.execute(key);
@@ -54,7 +76,9 @@ public final class ActionExecutor {
             runShell(CustomAction.arg(key));
         } else {
             AppLog.d(TAG, "未知动作: " + key);
+            return false;
         }
+        return true;
     }
 
     private void openApp(String pkg) {

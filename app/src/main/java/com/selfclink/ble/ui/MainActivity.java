@@ -81,7 +81,7 @@ public final class MainActivity extends AppCompatActivity {
                         list.add(k);
                     }
                     selected.gestureActions.put(editingGestureId, list);
-                    ruleStore.upsert(selected);
+                    if (!ruleStore.upsert(selected)) return;
                     ButtonService.reload(this);
                     renderDetail();
                 }
@@ -396,7 +396,7 @@ public final class MainActivity extends AppCompatActivity {
                 .setView(et)
                 .setPositiveButton("保存", (d, w) -> {
                     selected.name = et.getText().toString().trim();
-                    ruleStore.upsert(selected);
+                    if (!ruleStore.upsert(selected)) return;
                     ButtonService.reload(this);
                     reload();
                 })
@@ -417,7 +417,7 @@ public final class MainActivity extends AppCompatActivity {
         if (!isEightButton(d) || "eight_key".equals(d.uiLayout)) return;
         d.uiLayout = "eight_key";
         for (int i = 0; i < d.learned.size() && i < 8; i++) d.learned.get(i).slot = i;
-        ruleStore.upsert(d);
+        if (!ruleStore.upsert(d)) return;
     }
 
     private LearnedEvent learnedAtSlot(BoundDevice d, int slot) {
@@ -468,7 +468,7 @@ public final class MainActivity extends AppCompatActivity {
         }
         selected.gestureActions.remove(gestureId);
         eightButtonEditing = false;
-        ruleStore.upsert(selected);
+                    if (!ruleStore.upsert(selected)) return;
         ButtonService.reload(this);
         renderDetail();
     }
@@ -481,7 +481,7 @@ public final class MainActivity extends AppCompatActivity {
                 .setTitle(selected.name)
                 .setMessage("删除这台设备及其全部绑定？")
                 .setPositiveButton("删除", (d, w) -> {
-                    ruleStore.remove(selected.mac);
+                    if (!ruleStore.remove(selected.mac)) return;
                     ButtonService.reload(this);
                     selectedMac = null;
                     reload();

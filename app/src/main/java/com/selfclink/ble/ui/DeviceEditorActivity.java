@@ -180,8 +180,10 @@ public final class DeviceEditorActivity extends BackBarActivity {
             Toast.makeText(this, "该手势未绑定动作", Toast.LENGTH_SHORT).show();
             return;
         }
-        executor.executeAll(keys);
-        Toast.makeText(this, "已执行 " + g.name, Toast.LENGTH_SHORT).show();
+        int submitted = executor.executeAll(keys, device.mac);
+        Toast.makeText(this, submitted == 0 ? "动作未执行，请查看诊断" :
+                "通过条件并提交 " + submitted + "/" + keys.size() + " 个动作",
+                Toast.LENGTH_SHORT).show();
     }
 
     private String describe(List<String> keys) {
@@ -203,7 +205,7 @@ public final class DeviceEditorActivity extends BackBarActivity {
         if (!name.isEmpty()) {
             device.name = name;
         }
-        ruleStore.upsert(device);
+        if (!ruleStore.upsert(device)) return;
         ButtonService.reload(this);
         Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show();
         finish();

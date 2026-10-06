@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@color/bg">
+<LinearLayout
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -24,6 +29,17 @@
         android:textColor="@color/txt"
         android:textSize="28sp"
         android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/row_execution_rules"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="22dp"
+        android:background="@drawable/card_bg"
+        android:padding="22dp"
+        android:text="执行条件 · 自定义允许 / 禁止规则"
+        android:textColor="@color/txt"
+        android:textSize="20sp" />
 
     <TextView
         android:id="@+id/row_community"
@@ -169,3 +185,4 @@
         android:textColor="@color/sub"
         android:textSize="14sp" />
 </LinearLayout>
+</ScrollView>

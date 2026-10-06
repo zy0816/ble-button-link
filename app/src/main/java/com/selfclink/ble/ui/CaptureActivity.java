@@ -51,6 +51,7 @@ public final class CaptureActivity extends BackBarActivity {
     private final Map<String, String> lastHex = new HashMap<>();
     /** mac → BindKey（16 字节），来自已录入设备。 */
     private final Map<String, byte[]> keys = new HashMap<>();
+    private final Map<String, BoundDevice> boundDevices = new HashMap<>();
     /** 去重后的可导入事件：key=mac|objId|valueHex，保持出现顺序。 */
     private final Map<String, Captured> captured = new LinkedHashMap<>();
 
@@ -63,11 +64,13 @@ public final class CaptureActivity extends BackBarActivity {
         final String mac;
         final int objId;
         final byte[] value;
+        final String source;
 
-        Captured(String mac, int objId, byte[] value) {
+        Captured(String mac, int objId, byte[] value, String source) {
             this.mac = mac;
             this.objId = objId;
             this.value = value;
+            this.source = source;
         }
     }
 
@@ -91,7 +94,9 @@ public final class CaptureActivity extends BackBarActivity {
 
     private void loadKeys() {
         keys.clear();
+        boundDevices.clear();
         for (BoundDevice d : new RuleStore(this).load()) {
+            if (d.mac != null) boundDevices.put(d.mac.toUpperCase(), d);
             if (d.mac != null && d.bindKeyHex != null) {
                 try {
                     keys.put(d.mac.toUpperCase(), HexUtil.fromHex(d.bindKeyHex));
@@ -120,10 +125,9 @@ public final class CaptureActivity extends BackBarActivity {
     /** 扫描线程回调，切主线程更新 UI。 */
     private void onFrame(ScanFrame frame) {
         byte[] fe95 = frame.serviceData("fe95");
-        if (fe95 == null) {
-            return;
-        }
-        String hex = HexUtil.toHex(fe95);
+        BoundDevice bound = boundDevices.get(frame.mac.toUpperCase());
+        if (fe95 == null && bound == null) return;
+        String hex = frameSignature(frame);
         String prev = lastHex.get(frame.mac);
         if (hex.equals(prev)) {
             return; // 同一帧，忽略
@@ -133,21 +137,63 @@ public final class CaptureActivity extends BackBarActivity {
         StringBuilder line = new StringBuilder();
         line.append(time.format(new java.util.Date()))
                 .append(' ').append(frame.mac)
-                .append(" rssi=").append(frame.rssi)
-                .append("\n  fe95=").append(hex);
+                .append(" rssi=").append(frame.rssi);
+        if (fe95 != null) line.append("\n  fe95=").append(HexUtil.toHex(fe95));
 
         byte[] key = keys.get(frame.mac.toUpperCase());
-        if (key != null) {
+        boolean decoded = false;
+        if (key != null && fe95 != null) {
             MiBeacon.Result r = MiBeacon.parse(fe95, key, frame.mac);
             if (r != null) {
+                decoded = true;
                 byte[] val = r.value == null ? new byte[0] : r.value.clone();
                 line.append(String.format(Locale.US, "\n  → objId=0x%04X value=%s",
                         r.objId, val.length == 0 ? "(无)" : HexUtil.toHex(val)));
                 final String mac = frame.mac;
                 final int objId = r.objId;
-                main.post(() -> record(mac, objId, val));
+                main.post(() -> record(mac, objId, val, null));
             } else {
                 line.append("\n  → 待机/非事件帧或解密失败");
+            }
+        }
+        if (bound != null) {
+            com.selfclink.ble.protocol.GiotKeyPacket keyPacket =
+                    com.selfclink.ble.protocol.GiotKeyPacket.parse(frame);
+            if (keyPacket != null) {
+                line.append("\n  → AD 0x07 按键 K").append(keyPacket.key)
+                        .append(" 计数=").append(keyPacket.sequence);
+                main.post(() -> record(frame.mac, 0, keyPacket.signature(),
+                        com.selfclink.ble.protocol.GiotKeyPacket.SOURCE));
+            }
+            for (Map.Entry<Integer, byte[]> e : frame.advertisingDataEntries().entrySet()) {
+                int type = e.getKey();
+                if (type == 0x01 || (type >= 0x02 && type <= 0x07)
+                        || type == 0x08 || type == 0x09 || type == 0x16
+                        || type == 0x20 || type == 0x21 || type == 0xFF) continue;
+                String source = "ad:" + type;
+                byte[] data = e.getValue() == null ? new byte[0] : e.getValue().clone();
+                line.append(String.format(Locale.US, "\n  AD 0x%02X=", type))
+                        .append(HexUtil.toHex(data));
+                main.post(() -> record(frame.mac, 0, data, source));
+            }
+            for (Map.Entry<String, byte[]> e : frame.serviceDataEntries().entrySet()) {
+                if ("fe95".equals(e.getKey()) && key != null) continue;
+                String source = "service:" + e.getKey();
+                byte[] data = e.getValue() == null ? new byte[0] : e.getValue().clone();
+                line.append("\n  ").append(source).append('=').append(HexUtil.toHex(data));
+                main.post(() -> record(frame.mac, 0, data, source));
+            }
+            for (Map.Entry<Integer, byte[]> e : frame.manufacturerDataEntries().entrySet()) {
+                String source = "manufacturer:" + e.getKey();
+                byte[] data = e.getValue() == null ? new byte[0] : e.getValue().clone();
+                line.append("\n  ").append(source).append('=').append(HexUtil.toHex(data));
+                main.post(() -> record(frame.mac, 0, data, source));
+            }
+            byte[] raw = frame.rawRecord();
+            if (raw.length > 0) line.append("\n  record(仅诊断)=").append(HexUtil.toHex(raw));
+            if (!decoded && fe95 == null && frame.serviceDataEntries().isEmpty()
+                    && frame.manufacturerDataEntries().isEmpty()) {
+                line.append("\n  → 广播不含 Service/Manufacturer Data");
             }
         }
         final String text = line.toString();
@@ -168,10 +214,25 @@ public final class CaptureActivity extends BackBarActivity {
     }
 
     /** 记录一条解密成功的事件，按 mac+objId+value 去重，供导入选择。 */
-    private void record(String mac, int objId, byte[] value) {
-        String k = mac.toUpperCase() + '|' + objId + '|' + HexUtil.toHex(value);
+    private String frameSignature(ScanFrame frame) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, byte[]> e : frame.serviceDataEntries().entrySet())
+            sb.append('s').append(e.getKey()).append(HexUtil.toHex(
+                    e.getValue() == null ? new byte[0] : e.getValue()));
+        for (Map.Entry<Integer, byte[]> e : frame.manufacturerDataEntries().entrySet())
+            sb.append('m').append(e.getKey()).append(HexUtil.toHex(
+                    e.getValue() == null ? new byte[0] : e.getValue()));
+        for (Map.Entry<Integer, byte[]> e : frame.advertisingDataEntries().entrySet())
+            sb.append('a').append(e.getKey()).append(HexUtil.toHex(
+                    e.getValue() == null ? new byte[0] : e.getValue()));
+        sb.append('r').append(HexUtil.toHex(frame.rawRecord()));
+        return sb.toString();
+    }
+
+    private void record(String mac, int objId, byte[] value, String source) {
+        String k = mac.toUpperCase() + '|' + (source == null ? objId : source) + '|' + HexUtil.toHex(value);
         if (!captured.containsKey(k)) {
-            captured.put(k, new Captured(mac, objId, value));
+            captured.put(k, new Captured(mac, objId, value, source));
         }
     }
 
@@ -189,8 +250,10 @@ public final class CaptureActivity extends BackBarActivity {
             Captured c = items.get(i);
             BoundDevice d = store.byMac(c.mac);
             String name = d != null ? d.name : c.mac;
-            labels[i] = String.format(Locale.US, "%s\nobjId=0x%04X  value=%s",
-                    name, c.objId, c.value.length == 0 ? "(无)" : HexUtil.toHex(c.value));
+            labels[i] = c.source == null
+                    ? String.format(Locale.US, "%s\nobjId=0x%04X  value=%s", name, c.objId,
+                    c.value.length == 0 ? "(无)" : HexUtil.toHex(c.value))
+                    : name + "\n" + c.source + "  data=" + HexUtil.toHex(c.value);
         }
         new AlertDialog.Builder(this)
                 .setTitle("选择要导入的事件")
@@ -227,8 +290,10 @@ public final class CaptureActivity extends BackBarActivity {
 
         new AlertDialog.Builder(this)
                 .setTitle("导入到「" + device.name + "」")
-                .setMessage(String.format(Locale.US, "objId=0x%04X  value=%s",
-                        c.objId, c.value.length == 0 ? "(无)" : HexUtil.toHex(c.value)))
+                .setMessage(c.source == null
+                        ? String.format(Locale.US, "objId=0x%04X  value=%s", c.objId,
+                        c.value.length == 0 ? "(无)" : HexUtil.toHex(c.value))
+                        : c.source + "  data=" + HexUtil.toHex(c.value))
                 .setView(box)
                 .setPositiveButton("导入", (d, w) -> {
                     String label = et.getText().toString().trim();
@@ -244,7 +309,8 @@ public final class CaptureActivity extends BackBarActivity {
     private void saveImported(BoundDevice device, Captured c, String label, boolean exactValue) {
         byte[] mask;
         byte[] expected;
-        if (exactValue && c.value.length > 0) {
+        if ((exactValue || com.selfclink.ble.protocol.GiotKeyPacket.SOURCE.equals(c.source))
+                && c.value.length > 0) {
             mask = new byte[c.value.length];
             java.util.Arrays.fill(mask, (byte) 0xFF);
             expected = c.value.clone();
@@ -254,8 +320,12 @@ public final class CaptureActivity extends BackBarActivity {
         }
 
         LearnedEvent candidate = new LearnedEvent("tmp", label, c.objId, mask, expected);
+        candidate.source = c.source;
         for (LearnedEvent e : device.learned) {
-            if (e.matches(c.objId, c.value) || candidate.matches(e.objId, e.expected)) {
+            boolean conflict = c.source == null
+                    ? (e.matches(c.objId, c.value) || candidate.matches(e.objId, e.expected))
+                    : (e.matchesRaw(c.source, c.value) || candidate.matchesRaw(e.source, e.expected));
+            if (conflict) {
                 toast("与已有动作『" + e.label + "』无法区分；换个动作或勾选精确匹配再试");
                 return;
             }
@@ -263,6 +333,7 @@ public final class CaptureActivity extends BackBarActivity {
 
         String id = "e" + (System.currentTimeMillis() % 100000);
         LearnedEvent event = new LearnedEvent(id, label, c.objId, mask, expected);
+        event.source = c.source;
         if ("eight_key".equals(device.uiLayout)) {
             for (int slot = 0; slot < 8; slot++) {
                 boolean used = false;
@@ -271,7 +342,10 @@ public final class CaptureActivity extends BackBarActivity {
             }
         }
         device.learned.add(event);
-        new RuleStore(this).upsert(device);
+        if (!new RuleStore(this).upsert(device)) {
+            device.learned.remove(event);
+            return;
+        }
         ButtonService.reload(this);
         toast("已导入：" + label + " → 回编排页即可绑定动作");
     }

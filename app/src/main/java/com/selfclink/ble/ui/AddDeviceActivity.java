@@ -383,7 +383,7 @@ public final class AddDeviceActivity extends BackBarActivity {
                         name = suggestName;
                     }
                     BoundDevice dev = new BoundDevice(mac.toUpperCase(), productId, name, bindKeyHex);
-                    ruleStore.upsert(dev);
+                    if (!ruleStore.upsert(dev)) return;
                     ButtonService.reload(this);
                     toast("已添加：" + name);
                     finish();

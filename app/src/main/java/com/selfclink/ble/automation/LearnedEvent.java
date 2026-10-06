@@ -19,6 +19,8 @@ public final class LearnedEvent {
     public int objId;         // MiBeacon 对象 id
     public byte[] mask;       // 覆盖 value 的掩码
     public byte[] expected;   // 覆盖 value 的期望值（掩码下比较）
+    /** null/mibeacon 表示解密对象；service:xxxx / manufacturer:id 表示原始广播。 */
+    public String source;
     /** 多键面板上的物理槽位；-1 表示普通手势、不固定位置。 */
     public int slot = -1;
 
@@ -35,6 +37,7 @@ public final class LearnedEvent {
 
     /** 一帧解密结果是否命中本事件。 */
     public boolean matches(int oid, byte[] value) {
+        if (source != null && !source.isEmpty() && !"mibeacon".equals(source)) return false;
         if (oid != objId) {
             return false;
         }
@@ -53,9 +56,27 @@ public final class LearnedEvent {
         return true;
     }
 
+    /** 原始 Service/Manufacturer Data 是否命中。 */
+    public boolean matchesRaw(String actualSource, byte[] data) {
+        if (source == null || source.isEmpty() || "mibeacon".equals(source)
+                || !source.equals(actualSource)) return false;
+        byte[] v = data == null ? new byte[0] : data;
+        if (v.length < mask.length) return false;
+        for (int i = 0; i < mask.length; i++) {
+            int m = mask[i] & 0xFF;
+            if (((v[i] & 0xFF) & m) != ((expected[i] & 0xFF) & m)) return false;
+        }
+        return true;
+    }
+
     /** 供 UI 展示的编码摘要。 */
     public String summary() {
-        StringBuilder sb = new StringBuilder(String.format(java.util.Locale.US, "objId=0x%04X", objId));
+        StringBuilder sb = new StringBuilder();
+        if (source != null && !source.isEmpty() && !"mibeacon".equals(source)) {
+            sb.append(source);
+        } else {
+            sb.append(String.format(java.util.Locale.US, "objId=0x%04X", objId));
+        }
         if (mask.length > 0) {
             sb.append(" 判别=");
             for (int i = 0; i < mask.length; i++) {
@@ -76,6 +97,7 @@ public final class LearnedEvent {
         o.put("objId", objId);
         o.put("mask", HexUtil.toHex(mask));
         o.put("expected", HexUtil.toHex(expected));
+        if (source != null && !source.isEmpty()) o.put("source", source);
         if (slot >= 0) o.put("slot", slot);
         return o;
     }
@@ -87,6 +109,7 @@ public final class LearnedEvent {
         e.objId = o.getInt("objId");
         e.mask = HexUtil.fromHex(o.optString("mask", ""));
         e.expected = HexUtil.fromHex(o.optString("expected", ""));
+        e.source = o.optString("source", null);
         e.slot = o.optInt("slot", -1);
         return e;
     }

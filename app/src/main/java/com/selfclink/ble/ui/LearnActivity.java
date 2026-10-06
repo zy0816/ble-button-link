@@ -3,6 +3,7 @@ package com.selfclink.ble.ui;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.CheckBox;
@@ -13,8 +14,11 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 import com.selfclink.ble.R;
 import com.selfclink.ble.automation.BoundDevice;
@@ -32,10 +36,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 自学习接入：对同一动作连续操作 N 次，App 解密 MiBeacon、多帧求稳定字节自动生成 objId + value 掩码，
+ * 自学习接入：对同一动作连续操作 N 次，优先解密 MiBeacon；非 MiBeacon 设备则对原始广播多帧求稳，
  * 即可分辨单击/双击/长按/左旋/右旋等——无需预置 Profile，现场教一遍即用。
  *
- * <p>仅支持加密 MiBeacon 设备（需 BindKey）；捕获逻辑纯只读，学到的事件存到该设备的 {@link BoundDevice#learned}。
+ * 捕获逻辑纯只读，学到的事件存到该设备的 {@link BoundDevice#learned}。
  */
 public final class LearnActivity extends BackBarActivity {
 
@@ -57,6 +61,9 @@ public final class LearnActivity extends BackBarActivity {
     private int lastFcnt = -1;
     private final List<int[]> sampleObj = new ArrayList<>();   // 每个样本的 objId（用 int[]{objId} 占位）
     private final List<byte[]> sampleVal = new ArrayList<>();
+    private String sampleSource;
+    private long lastRawSampleAt;
+    private int lastRawSequence = -1;
     private AlertDialog captureDialog;
     private TextView captureText;
 
@@ -64,8 +71,25 @@ public final class LearnActivity extends BackBarActivity {
     private boolean selecting;
     private final LinkedHashMap<String, int[]> pickObj = new LinkedHashMap<>();   // key=objId+value hex → {objId}
     private final LinkedHashMap<String, byte[]> pickVal = new LinkedHashMap<>();   // key → value
+    private final LinkedHashMap<String, String> pickSource = new LinkedHashMap<>(); // key → raw source
     private AlertDialog selectDialog;
     private LinearLayout pickList;
+
+    private String pendingGestureId;
+    private final ActivityResultLauncher<android.content.Intent> actionPicker = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() != RESULT_OK || result.getData() == null
+                        || pendingGestureId == null) return;
+                String[] keys = result.getData().getStringArrayExtra(ActionPickerActivity.EXTRA_KEYS);
+                java.util.List<String> actions = new java.util.ArrayList<>();
+                if (keys != null) java.util.Collections.addAll(actions, keys);
+                device.gestureActions.put(pendingGestureId, actions);
+                if (!ruleStore.upsert(device)) return;
+                ButtonService.reload(this);
+                toast(actions.isEmpty() ? "已学习，但尚未绑定动作" : "已学习并绑定动作");
+                pendingGestureId = null;
+                renderList();
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,14 +107,12 @@ public final class LearnActivity extends BackBarActivity {
             return;
         }
         ProductAdapter adapter = new ProductRegistry(this).byProductId(device.productId);
-        boolean needKey = adapter != null
-                && adapter.credentialSpec() == ProductAdapter.CredentialSpec.BINDKEY16;
-        if (!needKey || device.bindKeyHex == null) {
-            toast("自学习目前仅支持加密米家设备（需 BindKey）");
-            finish();
-            return;
+        if (adapter != null && adapter.credentialSpec() == ProductAdapter.CredentialSpec.BINDKEY16
+                && device.bindKeyHex != null) {
+            try {
+                bindKey = HexUtil.fromHex(device.bindKeyHex);
+            } catch (Exception ignored) { }
         }
-        bindKey = HexUtil.fromHex(device.bindKeyHex);
 
         ((TextView) findViewById(R.id.learn_title)).setText("自学习 · " + device.name);
         findViewById(R.id.btn_learn_new).setOnClickListener(v -> chooseMode());
@@ -140,9 +162,12 @@ public final class LearnActivity extends BackBarActivity {
 
     private void startManualSelect() {
         selecting = true;
+        lastRawSequence = -1;
+        lastRawSampleAt = 0L;
         lastFcnt = -1;
         pickObj.clear();
         pickVal.clear();
+        pickSource.clear();
 
         pickList = new LinearLayout(this);
         pickList.setOrientation(LinearLayout.VERTICAL);
@@ -179,8 +204,11 @@ public final class LearnActivity extends BackBarActivity {
             int objId = pickObj.get(key)[0];
             byte[] val = pickVal.get(key);
             TextView row = new TextView(this);
-            row.setText(String.format(java.util.Locale.US, "objId=0x%04X   value=%s",
-                    objId, val.length == 0 ? "(无)" : HexUtil.toHex(val)));
+            String source = pickSource.get(key);
+            row.setText(source == null
+                    ? String.format(java.util.Locale.US, "objId=0x%04X   value=%s",
+                    objId, val.length == 0 ? "(无)" : HexUtil.toHex(val))
+                    : displaySource(source) + "   value=" + HexUtil.toHex(val));
             row.setTextColor(getColor(R.color.txt));
             row.setTextSize(16);
             row.setBackgroundResource(R.drawable.card_bg);
@@ -195,7 +223,8 @@ public final class LearnActivity extends BackBarActivity {
                 if (selectDialog != null) {
                     selectDialog.dismiss();
                 }
-                onPicked(objId, val);
+                if (source == null) onPicked(objId, val);
+                else onPickedRaw(source, val);
             });
             pickList.addView(row);
         }
@@ -311,7 +340,7 @@ public final class LearnActivity extends BackBarActivity {
                 return;
             }
         }
-        saveEvent(label, objId, mask, expected);
+        saveEvent(label, objId, mask, expected, null);
     }
 
     // ---------------- 自动学习 ----------------
@@ -319,6 +348,9 @@ public final class LearnActivity extends BackBarActivity {
     private void startCapture() {
         sampleObj.clear();
         sampleVal.clear();
+        sampleSource = null;
+        lastRawSampleAt = 0L;
+        lastRawSequence = -1;
         lastFcnt = -1;
         capturing = true;
 
@@ -343,24 +375,136 @@ public final class LearnActivity extends BackBarActivity {
             return;
         }
         byte[] fe95 = frame.serviceData("fe95");
-        if (fe95 == null) {
+        MiBeacon.Result r = fe95 != null && bindKey != null
+                ? MiBeacon.parse(fe95, bindKey, frame.mac) : null;
+        if (r != null) {
+            if (r.frameCounter == lastFcnt) return;
+            lastFcnt = r.frameCounter;
+            final int objId = r.objId;
+            final byte[] val = r.value == null ? new byte[0] : r.value.clone();
+            if (capturing) main.post(() -> addSample(objId, val));
+            else main.post(() -> addPick(objId, val));
             return;
         }
-        MiBeacon.Result r = MiBeacon.parse(fe95, bindKey, frame.mac);
-        if (r == null) {
+
+        RawSample raw = chooseRaw(frame);
+        if (raw != null && (capturing || selecting)) {
+            long now = SystemClock.elapsedRealtime();
+            if (raw.sequence >= 0) {
+                if (raw.sequence == lastRawSequence) return;
+                lastRawSequence = raw.sequence;
+            } else if (now - lastRawSampleAt < 350L) return;
+            lastRawSampleAt = now;
+            if (capturing) main.post(() -> addRawSample(raw.source, raw.data));
+            else main.post(() -> addRawPick(raw.source, raw.data));
+        }
+    }
+
+    private static final class RawSample {
+        final String source;
+        final byte[] data;
+        final int sequence;
+        RawSample(String source, byte[] data) { this(source, data, -1); }
+        RawSample(String source, byte[] data, int sequence) {
+            this.source = source;
+            this.data = data.clone();
+            this.sequence = sequence;
+        }
+    }
+
+    /** 优先学习私有 AD Structure，其次非 FE95 Service/Manufacturer Data。禁止整包学习。 */
+    private RawSample chooseRaw(ScanFrame frame) {
+        com.selfclink.ble.protocol.GiotKeyPacket key =
+                com.selfclink.ble.protocol.GiotKeyPacket.parse(frame);
+        if (key != null) {
+            return new RawSample(com.selfclink.ble.protocol.GiotKeyPacket.SOURCE,
+                    key.signature(), key.sequence);
+        }
+        // 跳过 flags / UUID / name / service / manufacturer 等标准 AD 字段。
+        for (Map.Entry<Integer, byte[]> e : frame.advertisingDataEntries().entrySet()) {
+            int type = e.getKey();
+            if (type != 0x01 && (type < 0x02 || type > 0x07)
+                    && type != 0x08 && type != 0x09 && type != 0x16
+                    && type != 0x20 && type != 0x21 && type != 0xFF
+                    && e.getValue() != null && e.getValue().length > 0) {
+                return new RawSample("ad:" + type, e.getValue());
+            }
+        }
+        for (Map.Entry<String, byte[]> e : frame.serviceDataEntries().entrySet()) {
+            if (!"fe95".equals(e.getKey()) && e.getValue() != null && e.getValue().length > 0)
+                return new RawSample("service:" + e.getKey(), e.getValue());
+        }
+        for (Map.Entry<Integer, byte[]> e : frame.manufacturerDataEntries().entrySet()) {
+            if (e.getValue() != null && e.getValue().length > 0)
+                return new RawSample("manufacturer:" + e.getKey(), e.getValue());
+        }
+        if (bindKey == null && frame.serviceData("fe95") != null)
+            return new RawSample("service:fe95", frame.serviceData("fe95"));
+        return null;
+    }
+
+    private void addRawSample(String source, byte[] data) {
+        if (!capturing) return;
+        if (sampleSource == null) sampleSource = source;
+        if (!sampleSource.equals(source)) return;
+        sampleObj.add(new int[]{-1});
+        sampleVal.add(data);
+        if (captureText != null) {
+            captureText.setText("请对同一个动作连续操作 " + NEEDED + " 次…\n\n原始广播 "
+                    + source + "\n已捕获 " + sampleVal.size() + "/" + NEEDED);
+        }
+        if (sampleVal.size() >= NEEDED) {
+            capturing = false;
+            if (captureDialog != null) captureDialog.dismiss();
+            finalizeRawCapture();
+        }
+    }
+
+    private void finalizeRawCapture() {
+        int len = sampleVal.get(0).length;
+        for (byte[] v : sampleVal) len = Math.min(len, v.length);
+        byte[] mask = new byte[len];
+        byte[] expected = new byte[len];
+        byte[] first = sampleVal.get(0);
+        int stable = 0;
+        for (int i = 0; i < len; i++) {
+            boolean constant = true;
+            for (byte[] v : sampleVal) if (v[i] != first[i]) { constant = false; break; }
+            mask[i] = constant ? (byte) 0xFF : 0;
+            expected[i] = constant ? first[i] : 0;
+            if (constant) stable++;
+        }
+        if (stable == 0) {
+            toast("三次广播没有稳定判别字节，请稍慢一些重新操作");
             return;
         }
-        if (r.frameCounter == lastFcnt) {
-            return; // 同一次操作的重复帧
+        LearnedEvent candidate = new LearnedEvent("tmp", "tmp", 0, mask, expected);
+        candidate.source = sampleSource;
+        for (LearnedEvent e : device.learned) {
+            if (e.matchesRaw(sampleSource, first) || candidate.matchesRaw(e.source, e.expected)) {
+                toast("与已有动作『" + e.label + "』无法区分，未添加");
+                return;
+            }
         }
-        lastFcnt = r.frameCounter;
-        final int objId = r.objId;
-        final byte[] val = r.value == null ? new byte[0] : r.value.clone();
-        if (capturing) {
-            main.post(() -> addSample(objId, val));
-        } else {
-            main.post(() -> addPick(objId, val));
-        }
+        promptRawName(sampleSource, mask, expected);
+    }
+
+    private void promptRawName(String source, byte[] mask, byte[] expected) {
+        EditText et = new EditText(this);
+        et.setHint("如 K1 / 左上 / 音量键");
+        int p = dp(20);
+        et.setPadding(p, dp(12), p, dp(12));
+        new AlertDialog.Builder(this)
+                .setTitle("给这个按键命名")
+                .setMessage("已识别原始广播：" + source)
+                .setView(et)
+                .setPositiveButton("保存", (d, w) -> {
+                    String label = et.getText().toString().trim();
+                    if (label.isEmpty()) label = "按键" + (device.learned.size() + 1);
+                    saveEvent(label, 0, mask, expected, source);
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     /** 手动选择模式：把新出现的不同编码加入实时列表（同 objId+value 去重）。 */
@@ -375,6 +519,47 @@ public final class LearnActivity extends BackBarActivity {
         pickObj.put(key, new int[]{objId});
         pickVal.put(key, val);
         refreshPickList();
+    }
+
+    private void addRawPick(String source, byte[] val) {
+        if (!selecting) return;
+        String key = source + ":" + HexUtil.toHex(val);
+        if (pickObj.containsKey(key)) return;
+        pickObj.put(key, new int[]{0});
+        pickVal.put(key, val.clone());
+        pickSource.put(key, source);
+        refreshPickList();
+    }
+
+    private void onPickedRaw(String source, byte[] value) {
+        EditText et = new EditText(this);
+        et.setHint("如 K1 / 左上 / 音量键");
+        int p = dp(20);
+        et.setPadding(p, dp(12), p, dp(12));
+        new AlertDialog.Builder(this)
+                .setTitle(displaySource(source) + "  value=" + HexUtil.toHex(value))
+                .setMessage("将精确匹配这条按键编码")
+                .setView(et)
+                .setPositiveButton("保存并绑定动作", (d, w) -> {
+                    String label = et.getText().toString().trim();
+                    if (label.isEmpty()) label = "按键" + (device.learned.size() + 1);
+                    byte[] mask = new byte[value.length];
+                    java.util.Arrays.fill(mask, (byte) 0xFF);
+                    saveEvent(label, 0, mask, value.clone(), source);
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private static String displaySource(String source) {
+        if (com.selfclink.ble.protocol.GiotKeyPacket.SOURCE.equals(source)) return "八键按键编号";
+        if (source != null && source.startsWith("ad:")) {
+            try {
+                int type = Integer.parseInt(source.substring(3));
+                return String.format(java.util.Locale.US, "AD 0x%02X", type);
+            } catch (NumberFormatException ignored) { }
+        }
+        return source;
     }
 
     private void addSample(int objId, byte[] val) {
@@ -453,21 +638,29 @@ public final class LearnActivity extends BackBarActivity {
                     if (label.isEmpty()) {
                         label = "动作" + (device.learned.size() + 1);
                     }
-                    saveEvent(label, objId, mask, expected);
+                    saveEvent(label, objId, mask, expected, null);
                 })
                 .setNegativeButton("取消", null)
                 .show();
     }
 
-    private void saveEvent(String label, int objId, byte[] mask, byte[] expected) {
+    private void saveEvent(String label, int objId, byte[] mask, byte[] expected, String source) {
         String id = "e" + (System.currentTimeMillis() % 100000);
         LearnedEvent event = new LearnedEvent(id, label, objId, mask, expected);
+        event.source = source;
         event.slot = nextFreeSlot(device);
         device.learned.add(event);
-        ruleStore.upsert(device);
+        if (!ruleStore.upsert(device)) {
+            device.learned.remove(event);
+            return;
+        }
         ButtonService.reload(this);
-        toast("已学：" + label);
         renderList();
+        pendingGestureId = id;
+        android.content.Intent intent = new android.content.Intent(this, ActionPickerActivity.class);
+        intent.putExtra(ActionPickerActivity.EXTRA_TITLE, label);
+        intent.putExtra(ActionPickerActivity.EXTRA_KEYS, new String[0]);
+        actionPicker.launch(intent);
     }
 
     private int nextFreeSlot(BoundDevice d) {
@@ -544,7 +737,7 @@ public final class LearnActivity extends BackBarActivity {
                 .setPositiveButton("删除", (d, w) -> {
                     device.learned.remove(e);
                     device.gestureActions.remove(e.id);
-                    ruleStore.upsert(device);
+                    if (!ruleStore.upsert(device)) return;
                     ButtonService.reload(this);
                     renderList();
                 })
